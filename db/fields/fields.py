@@ -2,7 +2,6 @@ import ast
 import datetime
 import uuid
 import json
-import db.frames.frames
 from io import BytesIO
 from bson import ObjectId
 from django.core import checks, exceptions, validators
@@ -31,8 +30,6 @@ __all__ = [
     'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField',
     'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey'
 ]
-
-
 
 
 class Empty:
@@ -873,16 +870,16 @@ class ArrayField(Field):
                 self.error_messages['invalid list format'],
                 code='invalid_list_format',
             )
-        if isinstance(self.to, _BaseFrame):
-            for idx, item in enumerate(value):
-                value[idx] = self.to.is_valid(item)
+        # if isinstance(self.to, _BaseFrame):
+        #     for idx, item in enumerate(value):
+        #         value[idx] = self.to.is_valid(item)
         if isinstance(self.to, Field):
             for idx, item in enumerate(value):
                 value[idx] = self.to.clean(item)
         return value
 
 
-# --------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------
 
 # ------------------------foreignkey and foreign frame need to be modify.... ------------------------
 
