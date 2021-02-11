@@ -103,6 +103,12 @@ class _BaseFrame:
                     errors[key] = e.messages
         if errors:
             raise ValidationError(message=errors)
+        return True
+
+    def clean(self, value):
+        if isinstance(value, _BaseFrame):
+            if value.is_valid():
+                return value.__dict__
 
 
 def to_json_type(self):
@@ -276,7 +282,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         """Insert this document"""
 
         # Send insert signal
-        signal('insert').send(self.__class__, frames=[self])
+        # signal('insert1').send(self.__class__, frames=[self])
 
         # Prepare the document to be inserted
         document = to_refs(self.__dict__)
@@ -291,7 +297,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         self._id = self.get_collection().insert_one(document).inserted_id
 
         # Send inserted signal
-        signal('inserted').send(self.__class__, frames=[self])
+        # signal('inserted').send(self.__class__, frames=[self])
 
     def unset(self, *fields):
         """Unset the given list of fields for this document."""
@@ -323,7 +329,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # assert '_id' in self.__dict__, "Can't update documents without `_id`"
 
         # Send update signal
-        signal('update').send(self.__class__, frames=[self])
+        # signal('update').send(self.__class__, frames=[self])
 
         # Check for selective updates
         document = {}
@@ -342,7 +348,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         self.get_collection().update_one({'_id': ObjectId(obj_id)}, {'$set': document})
 
         # Send updated signal
-        signal('updated').send(self.__class__, frames=[self])
+        # signal('updated').send(self.__class__, frames=[self])
 
     def upsert(self, *fields):
         """
