@@ -24,12 +24,13 @@ class _BaseFrame:
     # A cache of key lists generated from path strings used for performance (see
     # `_path_to_keys`.
     _path_to_keys_cache = {}
+    include = list()
+    exclude = list()
     _document = {}
     _meta = {}
     _update_field = set()
 
     def __init__(self, *args, **kwargs):
-
         for key, value in self.__class__.__dict__.items():
             if (isinstance(value, Field) or isinstance(value,
                                                        _BaseFrame)):
@@ -39,9 +40,10 @@ class _BaseFrame:
                 else:
                     value = value.default
                 self[key] = value
-
         self._update_field.clear()
 
+        # if not self.include:
+        #     self.include.extend(self.__dict__)
         if args and isinstance(args[0], dict):
             for key, value in args[0].items():
                 if self.__class__.__dict__.keys().__contains__(key):
@@ -110,45 +112,65 @@ class _BaseFrame:
             if value.is_valid():
                 return value.__dict__
 
+    def to_json_type(self):
+        """
+        Return a dictionary for the document with values converted to JSON safe
+        types.
+        """
+        result = dict()
+        if self.include and self.exclude:
+            return "error"
+        if self.include:
+            for key in self.include:
+                result[key] = self.__dict__[key]
+            return result
+        if self.exclude:
+            for key in self.__dict__:
+                if key not in self.exclude and key != "exclude":
+                    result[key] = self.__dict__[key]
+            return result
+        result = self.__dict__
+        return result
+        # include_data = {}
+        # for key in self._meta.keys():
+        #     if self.exclude:
+        #         if key not in self.exclude:
+        #             include_data[key] = self[key]
+        #     else:
+        #         if key in self.include:
+        #             include_data[key] = self[key]
+        # include_data = self._json_safe(include_data)
+        # # self._remove_keys(document_dict, self._private_fields)
+        # return include_data
 
-def to_json_type(self):
-    """
-    Return a dictionary for the document with values converted to JSON safe
-    types.
-    """
-    document_dict = self._json_safe(self.__dict__)
-    self._remove_keys(document_dict, self._private_fields)
-    return document_dict
+    @classmethod
+    def _json_safe(cls, value):
+        """Return a JSON safe value"""
+        # Date
+        if type(value) == date:
+            return str(value)
 
+        # Datetime
+        elif type(value) == datetime:
+            return value.strftime('%Y-%m-%d %H:%M:%S')
 
-@classmethod
-def _json_safe(cls, value):
-    """Return a JSON safe value"""
-    # Date
-    if type(value) == date:
-        return str(value)
+        # Object Id
+        elif isinstance(value, ObjectId):
+            return str(value)
 
-    # Datetime
-    elif type(value) == datetime:
-        return value.strftime('%Y-%m-%d %H:%M:%S')
+        # Frame
+        elif isinstance(value, _BaseFrame):
+            return value.to_json_type()
 
-    # Object Id
-    elif isinstance(value, ObjectId):
-        return str(value)
+        # Lists
+        elif isinstance(value, (list, tuple)):
+            return [cls._json_safe(v) for v in value]
 
-    # Frame
-    elif isinstance(value, _BaseFrame):
-        return value.to_json_type()
+        # Dictionaries
+        elif isinstance(value, dict):
+            return {k: cls._json_safe(v) for k, v in value.items()}
 
-    # Lists
-    elif isinstance(value, (list, tuple)):
-        return [cls._json_safe(v) for v in value]
-
-    # Dictionaries
-    elif isinstance(value, dict):
-        return {k: cls._json_safe(v) for k, v in value.items()}
-
-    return value
+        return value
 
 
 @classmethod
@@ -581,30 +603,47 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         """Return the first document matching the filter"""
 
         # Flatten the projection
-        kwargs['projection'], references, subs = \
-            cls._flatten_projection(
-                kwargs.get('projection', cls._default_projection)
-            )
+        # kwargs['projection'], references, subs = \
+        #     cls._flatten_projection(
+        #         kwargs.get('projection', cls._default_projection)
+        #     )
 
         # Find the document
         if isinstance(filter, (Condition, Group)):
             filter = filter.to_dict()
 
-        document = cls.get_collection().find_one(to_refs(filter), **kwargs)
+        if kwargs:
+            document = cls.get_collection().find_one(to_refs(filter), **kwargs)
+        else:
+            document = cls.get_collection().find_one(to_refs(filter))
 
         # Make sure we found a document
         if not document:
             return
 
         # Dereference the document (if required)
-        if references:
-            cls._dereference([document], references)
+        # if references:
+        #     cls._dereference([document], references)
 
         # Add sub-frames to the document (if required)
-        if subs:
-            cls._apply_sub_frames([document], subs)
-
+        # if subs:
+        #     cls._apply_sub_frames([document], subs)
+        # print(document)
+        # for key, value in document.items():
+        #     if key in cls.__dict__.keys():
+        #         print(key)
+        #         print(value)
+        #         setattr(cls,key,value)
+        # print(cls.__dict__)
+        # print(document)
+        # for key, value in document.items():
+        #     if cls.__dict__.keys().__contains__(key):
+        #         # print(document[key])
+        #         # cls.__dict__[key] = document[key]
+        #         # setattr(_BaseFrame,key,document[key])
+        # print(cls.__dict__)
         return cls(document)
+        # return document
 
     @classmethod
     def many(cls, filter=None, **kwargs):

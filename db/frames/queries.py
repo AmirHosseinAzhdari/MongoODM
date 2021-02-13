@@ -29,7 +29,7 @@ __all__ = [
 
     # Utils
     'to_refs'
-    ]
+]
 
 
 # Queries
@@ -131,6 +131,7 @@ def All(q, value):
     """
     return Condition(q._path, to_refs(value), '$all')
 
+
 def ElemMatch(q, *conditions):
     """
     The ElemMatch operator matches documents that contain an array field with at
@@ -146,6 +147,7 @@ def ElemMatch(q, *conditions):
 
     return Condition(q._path, new_condition, '$elemMatch')
 
+
 def Exists(q, value):
     """
     When exists is True, Exists matches the documents that contain the field,
@@ -154,12 +156,14 @@ def Exists(q, value):
     """
     return Condition(q._path, value, '$exists')
 
+
 def In(q, value):
     """
     The In operator selects the documents where the value of a field equals any
     value in the specified list.
     """
     return Condition(q._path, to_refs(value), '$in')
+
 
 def Not(condition):
     """
@@ -171,7 +175,8 @@ def Not(condition):
         condition.q,
         {condition.operator: condition.value},
         '$not'
-        )
+    )
+
 
 def NotIn(q, value):
     """
@@ -180,12 +185,14 @@ def NotIn(q, value):
     """
     return Condition(q._path, to_refs(value), '$nin')
 
+
 def Size(q, value):
     """
     The Size operator matches any list with the number of elements specified by
     size.
     """
     return Condition(q._path, value, '$size')
+
 
 def Type(q, value):
     """
@@ -281,6 +288,7 @@ def deep_merge(source, dest):
                         dest[key].append(item)
                 continue
         dest[key] = value
+
 
 def to_refs(value):
     """Convert all Frame instances within the given value to Ids"""
