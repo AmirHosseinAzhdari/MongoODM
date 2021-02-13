@@ -1,12 +1,14 @@
 from django.core.exceptions import ValidationError
-from db.fields.fields import *
 from contextlib import contextmanager
 
 from blinker import signal
 from bson.objectid import ObjectId
 from copy import deepcopy
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, timezone
 from pymongo import UpdateOne
+
+from db.fields import *
+from db.frames.queries import to_refs, Condition, Group
 
 __all__ = [
     'Frame',
@@ -53,7 +55,6 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
-        self.is_valid()
 
     # Get/Set attribute methods are overwritten to support for setting values
     # against the `_document`. Attribute names are converted to camelcase.
@@ -65,14 +66,14 @@ class _BaseFrame:
     #         "'{0}' has no attribute '{1}'".format(self.__class__.__name__, item)
     #     )
 
-    def __setattr__(self, key, value):
-
-        if (isinstance(value, Field) or isinstance(value,
-                                                   _BaseFrame)):
-            cleaned = self.__class__.__dict__.get(key).clean(value, None)
-            self.__dict__.update({key: cleaned})
-        else:
-            super(_BaseFrame, self).__setattr__(key, value)
+    # def __setattr__(self, key, value):
+    #
+    #     if (isinstance(value, Field) or isinstance(value,
+    #                                                _BaseFrame)):
+    #         cleaned = self.__class__.__dict__.get(key).clean(value, None)
+    #         self.__dict__.update({key: cleaned})
+    #     else:
+    #         super(_BaseFrame, self).__setattr__(key, value)
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -88,20 +89,13 @@ class _BaseFrame:
     def get(self, name, default=None):
         return self.__dict__.get(name, default)
 
-        # Serializing
+    # Serializing
 
-    def is_valid(self, *args):
+    def is_valid(self):
         errors = {}
+        validation_list = self._update_field if self._update_field else self.__dict__.keys()
         for key, value in self._meta.items():
-            if self._update_field:
-                if key in self._update_field:
-                    try:
-                        # print(self[key])
-                        cleaned = value.clean(self[key])
-                        self[key] = cleaned
-                    except ValidationError as e:
-                        errors[key] = e.messages
-            else:
+            if key in validation_list:
                 try:
                     cleaned = value.clean(self[key])
                     self[key] = cleaned
@@ -109,6 +103,12 @@ class _BaseFrame:
                     errors[key] = e.messages
         if errors:
             raise ValidationError(message=errors)
+        return True
+
+    def clean(self, value):
+        if isinstance(value, _BaseFrame):
+            if value.is_valid():
+                return value.__dict__
 
 
 def to_json_type(self):
@@ -186,7 +186,6 @@ def _remove_keys(cls, parent_dict, paths):
     Keys are specified as a series of `.` separated paths for keys in child
     dictionaries, e.g 'parent_key.child_key.grandchild_key'.
     """
-
     for path in paths:
         keys = cls._path_to_keys(path)
 
@@ -281,10 +280,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     def insert(self):
         """Insert this document"""
-        from mongoframes.queries import to_refs
 
         # Send insert signal
-        signal('insert').send(self.__class__, frames=[self])
+        # signal('insert1').send(self.__class__, frames=[self])
 
         # Prepare the document to be inserted
         document = to_refs(self.__dict__)
@@ -299,7 +297,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         self._id = self.get_collection().insert_one(document).inserted_id
 
         # Send inserted signal
-        signal('inserted').send(self.__class__, frames=[self])
+        # signal('inserted').send(self.__class__, frames=[self])
 
     def unset(self, *fields):
         """Unset the given list of fields for this document."""
@@ -322,22 +320,21 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send updated signal
         signal('updated').send(self.__class__, frames=[self])
 
-    def update(self, *fields, obj_id):
+    def update(self, obj_id):
         """
         Update this document. Optionally a specific list of fields to update can
         be specified.
         """
-        from mongoframes.queries import to_refs
 
         # assert '_id' in self.__dict__, "Can't update documents without `_id`"
 
         # Send update signal
-        signal('update').send(self.__class__, frames=[self])
+        # signal('update').send(self.__class__, frames=[self])
 
         # Check for selective updates
         document = {}
-        if len(self._update_field) > 0:
-            self.is_valid(self._update_field)
+        if self._update_field:
+            self.is_valid()
             for field in self._update_field.items():
                 document[field] = self.__dict__[field]
         else:
@@ -351,7 +348,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         self.get_collection().update_one({'_id': ObjectId(obj_id)}, {'$set': document})
 
         # Send updated signal
-        signal('updated').send(self.__class__, frames=[self])
+        # signal('updated').send(self.__class__, frames=[self])
 
     def upsert(self, *fields):
         """
@@ -396,7 +393,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def insert_many(cls, documents):
         """Insert a list of documents"""
-        from mongoframes.queries import to_refs
 
         # Ensure all documents have been converted to frames
         frames = cls._ensure_frames(documents)
@@ -425,7 +421,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         Update multiple documents. Optionally a specific list of fields to
         update can be specified.
         """
-        from mongoframes.queries import to_refs
 
         # Ensure all documents have been converted to frames
         frames = cls._ensure_frames(documents)
@@ -551,7 +546,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def count(cls, filter=None, **kwargs):
         """Return a count of documents matching the filter"""
-        from mongoframes.queries import Condition, Group, to_refs
 
         if isinstance(filter, (Condition, Group)):
             filter = filter.to_dict()
@@ -569,7 +563,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def ids(cls, filter=None, **kwargs):
         """Return a list of Ids for documents matching the filter"""
-        from mongoframes.queries import Condition, Group, to_refs
 
         # Find the documents
         if isinstance(filter, (Condition, Group)):
@@ -586,7 +579,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def one(cls, filter=None, **kwargs):
         """Return the first document matching the filter"""
-        from mongoframes.queries import Condition, Group, to_refs
 
         # Flatten the projection
         kwargs['projection'], references, subs = \
@@ -617,7 +609,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def many(cls, filter=None, **kwargs):
         """Return a list of documents matching the filter"""
-        from mongoframes.queries import Condition, Group, to_refs
 
         # Flatten the projection
         kwargs['projection'], references, subs = \
@@ -868,14 +859,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def cascade(cls, ref_cls, field, frames):
         """Apply a cascading delete (does not emit signals)"""
-        from mongoframes.queries import to_refs
         ids = [to_refs(f[field]) for f in frames if f.get(field)]
         ref_cls.get_collection().delete_many({'_id': {'$in': ids}})
 
     @classmethod
     def nullify(cls, ref_cls, field, frames):
         """Nullify a reference field (does not emit signals)"""
-        from mongoframes.queries import to_refs
         ids = [to_refs(f) for f in frames]
         ref_cls.get_collection().update_many(
             {field: {'$in': ids}},
@@ -885,7 +874,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     def pull(cls, ref_cls, field, frames):
         """Pull references from a list field (does not emit signals)"""
-        from mongoframes.queries import to_refs
         ids = [to_refs(f) for f in frames]
         ref_cls.get_collection().update_many(
             {field: {'$in': ids}},

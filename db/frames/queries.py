@@ -3,7 +3,6 @@ A set of helpers to simplify the creation of MongoDB queries.
 """
 
 import re
-
 from pymongo import (ASCENDING, DESCENDING)
 
 __all__ = [
@@ -285,7 +284,7 @@ def deep_merge(source, dest):
 
 def to_refs(value):
     """Convert all Frame instances within the given value to Ids"""
-    from mongoframes.frames import Frame, SubFrame
+    from .frames import Frame, SubFrame
 
     # Frame
     if isinstance(value, Frame):
