@@ -19,16 +19,19 @@ from django.forms.widgets import (
     DateTimeInput, EmailInput, FileInput, HiddenInput, MultipleHiddenInput,
     NullBooleanSelect, NumberInput, Select, SelectMultiple,
     SplitDateTimeWidget, SplitHiddenDateTimeWidget, Textarea, TextInput,
-    TimeInput, URLInput,
+    TimeInput, URLInput
 )
 import magic
+
+# from db.frames.frames import _BaseFrame
 
 __all__ = [
     'BooleanField', 'CharField',
     'DateField', 'DateTimeField',
     'EmailField', 'Field', 'FloatField', 'GenericIPAddressField',
     'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField',
-    'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey'
+    'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey',
+    'EmbeddedField'
 ]
 
 
@@ -885,14 +888,14 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, redis=None, collection=None, frame=None, queue=None, on_delete_cascade=None
+    def __init__(self, redis=None, collection=None, frame=None, service=None, on_delete=None
                  ):
         super(ForeignKey, self).__init__()
-        self.on_delete_cascade = on_delete_cascade
+        self.on_delete = on_delete
         self.redis = redis
         self.collection = collection
         self.frame = frame
-        self.queue = queue
+        self.service = service
 
     def to_python(self, value):
         try:
@@ -912,3 +915,33 @@ class ForeignFrame(JSONField):
         self.collection = collection
         self.frame = frame
         self.queue = queue
+
+
+class EmbeddedField(Field):
+    def __init__(self, main_frame, default=None, null=True):
+        super(EmbeddedField, self).__init__(default=default, null=null)
+        self.main_frame = main_frame
+
+    def to_python(self, value):
+        if value:
+            if not isinstance(value, self.main_frame):
+                value = self.main_frame(value)
+        return value
+
+    def clean(self, value):
+        value = super(EmbeddedField, self).clean(value)
+        if value:
+            value.is_valid()
+        return value
+
+
+class ObjectIdField(CharField):
+    def __init__(self, *args, **kwargs):
+        super(ObjectIdField, self).__init__(max_length=24, *args, **kwargs)
+
+    def to_python(self, value):
+        if value and not isinstance(value, ObjectId):
+            return ObjectId(value)
+        if self.null:
+            return value
+        return ObjectId()

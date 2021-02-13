@@ -8,7 +8,9 @@ from datetime import date, datetime, timezone
 from pymongo import UpdateOne
 
 from db.fields import *
+from db.fields.fields import ObjectIdField
 from db.frames.queries import to_refs, Condition, Group
+from pymongo import MongoClient
 
 __all__ = [
     'Frame',
@@ -31,6 +33,12 @@ class _BaseFrame:
     _update_field = set()
 
     def __init__(self, *args, **kwargs):
+        self.include = list()
+        self.exclude = list()
+        self._document = dict()
+        self._meta = dict()
+        self._update_field = set()
+        print(self.__class__.__dict__)
         for key, value in self.__class__.__dict__.items():
             if (isinstance(value, Field) or isinstance(value,
                                                        _BaseFrame)):
@@ -41,7 +49,6 @@ class _BaseFrame:
                     value = value.default
                 self[key] = value
         self._update_field.clear()
-
         # if not self.include:
         #     self.include.extend(self.__dict__)
         if args and isinstance(args[0], dict):
@@ -91,10 +98,19 @@ class _BaseFrame:
     def get(self, name, default=None):
         return self.__dict__.get(name, default)
 
+    def _get_document(self):
+        document = dict()
+        for key in self._meta.keys():
+            if isinstance(self.__dict__[key], _BaseFrame):
+                document.update({key: self.__dict__[key]._get_document()})
+            else:
+                document.update({key: self.__dict__[key]})
+        return document
+
     # Serializing
 
     def is_valid(self):
-        errors = {}
+        errors = dict()
         validation_list = self._update_field if self._update_field else self.__dict__.keys()
         for key, value in self._meta.items():
             if key in validation_list:
@@ -248,14 +264,13 @@ class _FrameMeta(type):
     """
 
     def __new__(meta, name, bases, dct):
-
         # If a set of fields is defined ensure it contains `_id`
-        if '_fields' in dct and not '_id' in dct['_fields']:
-            dct['_fields'].update({'_id'})
-
         # If no collection name is set then use the class name
         if dct.get('_collection') is None:
             dct['_collection'] = name
+
+        if dct.get('_id') is None:
+            dct['_id'] = ObjectIdField(null=True)
 
         return super(_FrameMeta, meta).__new__(meta, name, bases, dct)
 
@@ -267,7 +282,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     """
 
     # The MongoDB client used to interface with the database
-    _client = None
+
+    _client = MongoClient(
+        "mongodb://root:example@10.10.10.20:27018/test?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
 
     # The database on which this collection the class represents is located
     _db = None
@@ -284,6 +301,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # Default projection
     _default_projection = None
+
+    def __init__(self, *args, **kwargs):
+        super(Frame, self).__init__(*args, **kwargs)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -307,7 +327,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # signal('insert1').send(self.__class__, frames=[self])
 
         # Prepare the document to be inserted
-        document = to_refs(self.__dict__)
+        document = to_refs(self._get_document())
 
         # validate data
         self._update_field = list()
