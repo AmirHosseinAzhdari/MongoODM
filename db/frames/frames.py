@@ -38,7 +38,6 @@ class _BaseFrame:
         self._document = dict()
         self._meta = dict()
         self._update_field = set()
-        print(self.__class__.__dict__)
         for key, value in self.__class__.__dict__.items():
             if (isinstance(value, Field) or isinstance(value,
                                                        _BaseFrame)):
