@@ -63,8 +63,6 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
-        print(self.__dict__)
-        print(self.__class__.__dict__)
     # Get/Set attribute methods are overwritten to support for setting values
     # against the `_document`. Attribute names are converted to camelcase.
 
@@ -273,8 +271,6 @@ class _FrameMeta(type):
 
         if dct.get('_id') is None:
             dct['_id'] = ObjectIdField(null=True)
-        print(dct['_id'])
-        print(dct)
         return super(_FrameMeta, meta).__new__(meta, name, bases, dct)
 
 
@@ -386,7 +382,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         document = {}
         if self._update_field:
             self.is_valid()
-            print(self._update_field)
             for field in self._update_field.items():
                 document[field] = self.__dict__[field]
         else:
@@ -396,7 +391,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Prepare the document to be updated
         document = to_refs(document)
 
-        # Update the document
+        # Update the document_
         self.get_collection().update_one({'_id': ObjectId(obj_id)}, {'$set': document})
 
         # Send updated signal
