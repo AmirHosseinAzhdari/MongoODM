@@ -38,7 +38,6 @@ class _BaseFrame:
         self._document = dict()
         self._meta = dict()
         self._update_field = set()
-        print(self.__class__.__dict__)
         for key, value in self.__class__.__dict__.items():
             if (isinstance(value, Field) or isinstance(value,
                                                        _BaseFrame)):
@@ -64,7 +63,8 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
-
+        print(self.__dict__)
+        print(self.__class__.__dict__)
     # Get/Set attribute methods are overwritten to support for setting values
     # against the `_document`. Attribute names are converted to camelcase.
 
@@ -112,6 +112,8 @@ class _BaseFrame:
     def is_valid(self):
         errors = dict()
         validation_list = self._update_field if self._update_field else self.__dict__.keys()
+        if '_id' not in validation_list and '_id' in self._meta.keys():
+            validation_list.add("_id")
         for key, value in self._meta.items():
             if key in validation_list:
                 try:
@@ -271,7 +273,8 @@ class _FrameMeta(type):
 
         if dct.get('_id') is None:
             dct['_id'] = ObjectIdField(null=True)
-
+        print(dct['_id'])
+        print(dct)
         return super(_FrameMeta, meta).__new__(meta, name, bases, dct)
 
 
@@ -302,8 +305,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     # Default projection
     _default_projection = None
 
-    def __init__(self, *args, **kwargs):
-        super(Frame, self).__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs):
+    #     super(Frame, self).__init__(*args, **kwargs)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -320,18 +323,24 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # Operations
 
+    def save(self, object_id=None):
+        """Insert or Update document"""
+        if object_id:
+            self.update(object_id)
+        else:
+            self.insert()
+
     def insert(self):
         """Insert this document"""
-
         # Send insert signal
         # signal('insert1').send(self.__class__, frames=[self])
-
         # Prepare the document to be inserted
-        document = to_refs(self._get_document())
-
-        # validate data
         self._update_field = list()
         self.is_valid()
+
+        document = to_refs(self._get_document())
+        document.pop('_id')
+        # validate data
 
         # TODO -> IMPLEMENT SAGA
 
@@ -377,6 +386,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         document = {}
         if self._update_field:
             self.is_valid()
+            print(self._update_field)
             for field in self._update_field.items():
                 document[field] = self.__dict__[field]
         else:
