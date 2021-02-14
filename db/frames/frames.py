@@ -31,8 +31,10 @@ class _BaseFrame:
     _document = {}
     _meta = {}
     _update_field = set()
+    errors = list()
 
     def __init__(self, *args, **kwargs):
+        self.errors = list()
         self.include = list()
         self.exclude = list()
         self._document = dict()
@@ -63,6 +65,7 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
+
     # Get/Set attribute methods are overwritten to support for setting values
     # against the `_document`. Attribute names are converted to camelcase.
 
@@ -107,9 +110,12 @@ class _BaseFrame:
 
     # Serializing
 
-    def is_valid(self):
-        errors = dict()
-        validation_list = self._update_field if self._update_field else self.__dict__.keys()
+    def is_valid(self, full=True):
+
+        if full:
+            validation_list = self.__dict__.keys()
+        else:
+            validation_list = self._update_field
         if '_id' not in validation_list and '_id' in self._meta.keys():
             validation_list.add("_id")
         for key, value in self._meta.items():
@@ -118,9 +124,10 @@ class _BaseFrame:
                     cleaned = value.clean(self[key])
                     self[key] = cleaned
                 except ValidationError as e:
-                    errors[key] = e.messages
-        if errors:
-            raise ValidationError(message=errors)
+                    er = {key: e.messages[0]}
+                    self.errors.append(er)
+        if self.errors:
+            raise ValidationError(message=str(self.errors))
         return True
 
     def clean(self, value):
@@ -319,19 +326,19 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # Operations
 
-    def save(self, object_id=None):
+    def save(self):
         """Insert or Update document"""
-        if object_id:
-            self.update(object_id)
-        else:
+        if self["_id"] is None:
             self.insert()
+        else:
+            self.update()
 
     def insert(self):
         """Insert this document"""
         # Send insert signal
         # signal('insert1').send(self.__class__, frames=[self])
         # Prepare the document to be inserted
-        self._update_field = list()
+        self._update_field.clear()
         self.is_valid()
 
         document = to_refs(self._get_document())
@@ -367,7 +374,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send updated signal
         signal('updated').send(self.__class__, frames=[self])
 
-    def update(self, obj_id):
+    def update(self):
         """
         Update this document. Optionally a specific list of fields to update can
         be specified.
@@ -387,6 +394,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         else:
             self.is_valid()
             document = self.__dict__
+        obj_id = document["_id"]
+        document.pop("_id")
 
         # Prepare the document to be updated
         document = to_refs(document)
@@ -990,6 +999,16 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
             else:
                 cls._collection_context = existing_context
+
+    @classmethod
+    def aggregate(cls, documents):
+        document = cls.get_collection().aggregate(documents)
+
+        # Make sure we found a document
+        if not document:
+            return
+
+        return cls(document)
 
 
 class SubFrame(_BaseFrame):
