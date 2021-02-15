@@ -31,6 +31,7 @@ __all__ = [
     'EmailField', 'Field', 'FloatField', 'GenericIPAddressField',
     'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField',
     'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey',
+    'ObjectIdField',
     'EmbeddedField'
 ]
 
@@ -827,7 +828,6 @@ class FileField(Field):
             return data
         mime = magic.Magic(mime=True)
         file_extention = mime.from_buffer(data.read()).split("/")[1]
-        print(self.allowed_extentions)
         if self.allowed_extentions is True:
             return data
         if file_extention in self.allowed_extentions:
@@ -918,14 +918,15 @@ class ForeignFrame(JSONField):
 
 
 class EmbeddedField(Field):
-    def __init__(self, main_frame, default=None, null=True):
+    def __init__(self, to, default=None, null=True):
+        self.null = null
         super(EmbeddedField, self).__init__(default=default, null=null)
-        self.main_frame = main_frame
+        self.to = to
 
     def to_python(self, value):
         if value:
-            if not isinstance(value, self.main_frame):
-                value = self.main_frame(value)
+            if not isinstance(value, self.to):
+                value = self.to(value)
         return value
 
     def clean(self, value):
@@ -935,13 +936,25 @@ class EmbeddedField(Field):
         return value
 
 
-class ObjectIdField(CharField):
+class ObjectIdField(Field):
     def __init__(self, *args, **kwargs):
         super(ObjectIdField, self).__init__(max_length=24, *args, **kwargs)
 
     def to_python(self, value):
+        if self.null and value in self.empty_values:
+            return None
         if value and not isinstance(value, ObjectId):
             return ObjectId(value)
         if self.null:
             return value
         return ObjectId()
+
+    def clean(self, value):
+        super(ObjectIdField, self).clean(value)
+        if value is not None:
+            if len(str(value)) is not 24:
+                raise exceptions.ValidationError(
+                    self.error_messages['invalid object id'],
+                    code='invalid_object_id',
+                )
+        return value
