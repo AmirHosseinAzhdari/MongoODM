@@ -2,12 +2,6 @@ from aio_pika import *
 import asyncio
 
 
-async def on_Message(message: IncomingMessage):
-    async with message.process():
-        print(message.body)
-        await asyncio.sleep(1)
-
-
 async def consumer(exchange_name=None, exchange_type=None, queue_name=None, call_back_method=None, loop=None):
     if not loop:
         loop = asyncio.get_event_loop()
@@ -18,7 +12,7 @@ async def consumer(exchange_name=None, exchange_type=None, queue_name=None, call
     channel = await connection.channel()
 
     if exchange_name and exchange_type:
-        exchange = await channel.declare_exchange('publisher', exchange_type, durable=True)
+        exchange = await channel.declare_exchange(exchange_name, exchange_type, durable=True)
 
         if queue_name is None:
             queue = await channel.declare_queue('default')
@@ -27,9 +21,9 @@ async def consumer(exchange_name=None, exchange_type=None, queue_name=None, call
 
         await queue.bind(exchange)
 
-        await queue.consume(callback=on_Message)
+        await queue.consume(callback=call_back_method,)
 
     else:
         queue = await channel.declare_queue(queue_name)
 
-        await queue.consume(callback=on_Message)
+        await queue.consume(callback=call_back_method)

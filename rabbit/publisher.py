@@ -21,15 +21,9 @@ async def publisher(message, queue_name=None, routing_key=None, exchange_type=No
     channel = await connection.channel()
     if exchange_type:
         exchange = await channel.declare_exchange(exchange_name, exchange_type, durable=True)
-        # queue = await channel.declare_queue(queue_name)
-        #
-        # await queue.bind(exchange)
 
     else:
         exchange = channel.default_exchange
-        # queue = await channel.declare_queue(queue_name, routing_key=routing_key)
-        #
-        # await queue.bind(exchange)
 
     await exchange.publish(Message(
         bytes(message.encode()),
