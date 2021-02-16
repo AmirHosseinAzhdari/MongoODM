@@ -1,3 +1,4 @@
+import asyncio
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
@@ -28,18 +29,17 @@ class _BaseFrame:
     _path_to_keys_cache = {}
     include = list()
     exclude = list()
-    _document = {}
     _meta = {}
     _update_field = set()
     errors = list()
 
     def __init__(self, *args, **kwargs):
-        self.errors = list()
-        self.include = list()
         self.exclude = list()
+        self.errors = list()
         self._document = dict()
         self._meta = dict()
         self._update_field = set()
+        self._child_frames = dict()
         for key, value in self.__class__.__dict__.items():
             if (isinstance(value, Field) or isinstance(value,
                                                        _BaseFrame)):
@@ -49,12 +49,19 @@ class _BaseFrame:
                 else:
                     value = value.default
                 self[key] = value
+            elif isinstance(value, ForeignFrame):
+                self._child_frames[key] = value
+                self[key] = list()
         self._update_field.clear()
         # if not self.include:
         #     self.include.extend(self.__dict__)
         if args and isinstance(args[0], dict):
             for key, value in args[0].items():
-                if self.__class__.__dict__.keys().__contains__(key):
+                if isinstance(self.__class__.__dict__[key], ForeignFrame):
+                    for embedded_value in value:
+                        for key, value in self._child_frames.items():
+                            self[key].append(value.frame(embedded_value))
+                elif self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
         if kwargs:
             if kwargs.keys().__contains__('data'):
@@ -65,6 +72,38 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
+
+    # def __init__(self, *args, **kwargs):
+    #     self.errors = list()
+    #     self.include = list()
+    #     self.exclude = list()
+    #     self._meta = dict()
+    #     self._update_field = set()
+    #     for key, value in self.__class__.__dict__.items():
+    #         if (isinstance(value, Field) or isinstance(value,
+    #                                                    _BaseFrame)):
+    #             self._meta[key] = value
+    #             if value.default == NOT_PROVIDED:
+    #                 value = None
+    #             else:
+    #                 value = value.default
+    #             self[key] = value
+    #     self._update_field.clear()
+    #     # if not self.include:
+    #     #     self.include.extend(self.__dict__)
+    #     if args and isinstance(args[0], dict):
+    #         for key, value in args[0].items():
+    #             if self.__class__.__dict__.keys().__contains__(key):
+    #                 self[key] = value
+    #     if kwargs:
+    #         if kwargs.keys().__contains__('data'):
+    #             data = kwargs.pop('data')
+    #             for key, value in data.items():
+    #                 if self.keys().__contains__(key):
+    #                     self[key] = value
+    #         for key, value in kwargs.items():
+    #             if self.__class__.__dict__.keys().__contains__(key):
+    #                 self[key] = value
 
     # Get/Set attribute methods are overwritten to support for setting values
     # against the `_document`. Attribute names are converted to camelcase.
@@ -143,16 +182,36 @@ class _BaseFrame:
         result = dict()
         if self.include and self.exclude:
             return "error"
-        if self.include:
+        elif self.include:
             for key in self.include:
-                result[key] = self.__dict__[key]
-            return result
-        if self.exclude:
+                if isinstance(self[key], list):
+                    counter = 0
+                    for item in self[key]:
+                        if isinstance(item, _BaseFrame):
+                            self[key][counter] = item.to_json_type()
+                            counter += 1
+                result[key] = self[key]
+        elif self.exclude:
             for key in self.__dict__:
-                if key not in self.exclude and key != "exclude":
-                    result[key] = self.__dict__[key]
-            return result
-        result = self.__dict__
+                if key not in self.exclude and key != "exclude" and (
+                        key in self._meta or key in self._child_frames.keys()):
+                    if isinstance(self[key], list):
+                        counter = 0
+                        for item in self[key]:
+                            if isinstance(item, _BaseFrame):
+                                self[key][counter] = item.to_json_type()
+                                counter += 1
+                    result[key] = self[key]
+        else:
+            for key in self.__dict__:
+                if key in self._meta or key in self._child_frames.keys():
+                    if isinstance(self[key], list):
+                        counter = 0
+                        for item in self[key]:
+                            if isinstance(item, _BaseFrame):
+                                self[key][counter] = item.to_json_type()
+                                counter += 1
+                    result[key] = self[key]
         return result
         # include_data = {}
         # for key in self._meta.keys():
@@ -290,7 +349,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     # The MongoDB client used to interface with the database
 
     _client = MongoClient(
-        "mongodb://root:example@10.10.10.20:27018/test?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
+        "mongodb://root:example@10.10.10.20:27018/test1?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
 
     # The database on which this collection the class represents is located
     _db = None
@@ -348,7 +407,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # TODO -> IMPLEMENT SAGA
 
         # Insert the document and update the Id
-        self._id = self.get_collection().insert_one(document).inserted_id
+        self._id = self.get_collection().insert_one(document)
 
         # Send inserted signal
         # signal('inserted').send(self.__class__, frames=[self])
@@ -389,7 +448,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         document = {}
         if self._update_field:
             self.is_valid()
-            for field in self._update_field.items():
+            for field in self._update_field:
                 document[field] = self.__dict__[field]
         else:
             self.is_valid()
@@ -401,12 +460,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         document = to_refs(document)
 
         # Update the document_
-        self.get_collection().update_one({'_id': ObjectId(obj_id)}, {'$set': document})
+        self.get_collection().update_one({'_id': ObjectId(document["_id"])}, {'$set': document})
 
         # Send updated signal
         # signal('updated').send(self.__class__, frames=[self])
 
-    def upsert(self, *fields):
+    def upsert(self):
         """
         Update or Insert this document depending on whether it exists or not.
         The presense of an `_id` value in the document is used to determine if
@@ -430,7 +489,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if self.count({'_id': self._id}) == 0:
             self.insert()
         else:
-            self.update(*fields)
+            self.update()
 
     def delete(self):
         """Delete this document"""
@@ -445,6 +504,13 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
         # Send deleted signal
         signal('deleted').send(self.__class__, frames=[self])
+
+    @classmethod
+    def aggregate(cls, pipeline):
+        documents = cls.get_collection().aggregate(pipeline)
+        if documents is None:
+            return
+        return [cls(d) for d in documents]
 
     @classmethod
     def insert_many(cls, documents):
@@ -999,16 +1065,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
             else:
                 cls._collection_context = existing_context
-
-    @classmethod
-    def aggregate(cls, documents):
-        document = cls.get_collection().aggregate(documents)
-
-        # Make sure we found a document
-        if not document:
-            return
-
-        return cls(document)
 
 
 class SubFrame(_BaseFrame):

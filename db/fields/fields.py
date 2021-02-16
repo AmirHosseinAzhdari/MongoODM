@@ -907,16 +907,6 @@ class ForeignKey(Field):
             )
 
 
-class ForeignFrame(JSONField):
-    def __init__(self, redis=None, collection=None, frame=None, queue=None, on_delete_cascade=None):
-        super(ForeignFrame, self).__init__()
-        self.on_delete_cascade = on_delete_cascade
-        self.redis = redis
-        self.collection = collection
-        self.frame = frame
-        self.queue = queue
-
-
 class EmbeddedField(Field):
     def __init__(self, to, default=None, null=True):
         self.null = null
@@ -958,3 +948,11 @@ class ObjectIdField(Field):
                     code='invalid_object_id',
                 )
         return value
+
+
+class ForeignFrame:
+    def __init__(self, redis=False, frame=None, queue=False, on_delete=False):
+        self.on_delete = on_delete
+        self.redis = redis
+        self.frame = frame
+        self.queue = queue
