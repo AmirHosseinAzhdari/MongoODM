@@ -7,3 +7,5 @@ pytz==2021.1
 sqlparse==0.4.1
 blinker==1.4
 Pillow==8.1.0
+tornado==6.1
+motor==2.3.1

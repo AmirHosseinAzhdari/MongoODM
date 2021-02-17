@@ -934,7 +934,10 @@ class ObjectIdField(Field):
         if self.null and value in self.empty_values:
             return None
         if value and not isinstance(value, ObjectId):
-            return ObjectId(value)
+            try:
+                return ObjectId(value)
+            except:
+                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
         if self.null:
             return value
         return ObjectId()
@@ -942,10 +945,10 @@ class ObjectIdField(Field):
     def clean(self, value):
         super(ObjectIdField, self).clean(value)
         if value is not None:
-            if len(str(value)) is not 24:
+            if len(str(value)) != 24:
                 raise exceptions.ValidationError(
-                    self.error_messages['invalid object id'],
-                    code='invalid_object_id',
+                    self.error_messages[f'“{value}” value must be an valid Id.'],
+                    code=f'“{value}” value must be an valid Id.',
                 )
         return value
 
