@@ -388,12 +388,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                 document[field] = self.__dict__[field]
         else:
             document = self.__dict__
-        obj_id = document["_id"]
+        # obj_id = document["_id"]
         document.pop("_id")
         # Prepare the document to be updated
         document = to_refs(document)
         # Update the document_
-        update_result = await self.get_collection().update_one({'_id': ObjectId(obj_id)}, {'$set': document})
+        update_result = await self.get_collection().update_one({'_id': ObjectId(self._id)}, {'$set': document})
 
         if update_result.matched_count >= 1:
             return True
@@ -435,7 +435,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send delete signal to child
         if self._child_frames:
             for child_frame in self._child_frames.keys():
-                signal('delete').send(self.__class__, frames=child_frame)
+                cascade_delete = signal('delete')
+                cascade_delete.connect(self.s)
+                cascade_delete.send(frame=child_frame, _id=self._id)
+                # signal('delete').send(self.__class__, frames=child_frame)
 
         self.is_valid()
         # Delete the document
@@ -446,6 +449,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         return False
         # Send deleted signal
         # signal('deleted').send(self.__class__, frames=[self])
+
+    def s(self, *args, **kwargs):
+        print(kwargs)
+        print("signal for delete")
 
     @classmethod
     async def aggregate(cls, pipeline):
@@ -566,24 +573,24 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         signal('updated').send(cls, frames=frames)
 
     @classmethod
-    async def delete_many(cls, documents):
+    async def delete_many(cls, **kwargs):
         """Delete multiple documents"""
 
         # Ensure all documents have been converted to frames
         # frames = cls._ensure_frames(documents)
 
-        all_count = len(documents)
-        assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
-            "Can't delete documents without `_id`s"
+        # all_count = len(documents)
+        # assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
+        #     "Can't delete documents without `_id`s"
 
         # Send delete signal
-        signal('delete').send(cls, frames=frames)
+        # signal('delete').send(cls, frames=frames)
 
         # Prepare the documents to be deleted
-        ids = [f._id for f in frames]
+        # ids = [f._id for f in frames]
 
         # Delete the documents
-        cls.get_collection().delete_many({'_id': {'$in': ids}})
+        deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
 
         # Send deleted signal
         # signal('deleted').send(cls, frames=frames)
