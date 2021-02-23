@@ -1,9 +1,5 @@
-<<<<<<< HEAD
 /venv/
 /main.py
 .idea
 **/__pycache__
-=======
-.idea
 /venv
->>>>>>> d65af7e2c46719a68037dfb0a00471bb9d5198dc
