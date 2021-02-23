@@ -907,16 +907,6 @@ class ForeignKey(Field):
             )
 
 
-class ForeignFrame(JSONField):
-    def __init__(self, redis=None, collection=None, frame=None, queue=None, on_delete_cascade=None):
-        super(ForeignFrame, self).__init__()
-        self.on_delete_cascade = on_delete_cascade
-        self.redis = redis
-        self.collection = collection
-        self.frame = frame
-        self.queue = queue
-
-
 class EmbeddedField(Field):
     def __init__(self, to, default=None, null=True):
         self.null = null
@@ -944,7 +934,10 @@ class ObjectIdField(Field):
         if self.null and value in self.empty_values:
             return None
         if value and not isinstance(value, ObjectId):
-            return ObjectId(value)
+            try:
+                return ObjectId(value)
+            except:
+                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
         if self.null:
             return value
         return ObjectId()
@@ -952,9 +945,17 @@ class ObjectIdField(Field):
     def clean(self, value):
         super(ObjectIdField, self).clean(value)
         if value is not None:
-            if len(str(value)) is not 24:
+            if len(str(value)) != 24:
                 raise exceptions.ValidationError(
-                    self.error_messages['invalid object id'],
-                    code='invalid_object_id',
+                    self.error_messages[f'“{value}” value must be an valid Id.'],
+                    code=f'“{value}” value must be an valid Id.',
                 )
         return value
+
+
+class ForeignFrame:
+    def __init__(self, redis=False, frame=None, queue=False, on_delete=False):
+        self.on_delete = on_delete
+        self.redis = redis
+        self.frame = frame
+        self.queue = queue
