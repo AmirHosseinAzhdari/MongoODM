@@ -11,7 +11,7 @@ from pymongo import UpdateOne
 from db.fields import *
 from db.fields.fields import ObjectIdField
 from db.frames.queries import to_refs, Condition, Group
-from pymongo import MongoClient
+from motor import MotorClient, motor_asyncio
 
 __all__ = [
     'Frame',
@@ -53,8 +53,6 @@ class _BaseFrame:
                 self._child_frames[key] = value
                 self[key] = list()
         self._update_field.clear()
-        # if not self.include:
-        #     self.include.extend(self.__dict__)
         if args and isinstance(args[0], dict):
             for key, value in args[0].items():
                 if isinstance(self.__class__.__dict__[key], ForeignFrame):
@@ -72,57 +70,6 @@ class _BaseFrame:
             for key, value in kwargs.items():
                 if self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
-
-    # def __init__(self, *args, **kwargs):
-    #     self.errors = list()
-    #     self.include = list()
-    #     self.exclude = list()
-    #     self._meta = dict()
-    #     self._update_field = set()
-    #     for key, value in self.__class__.__dict__.items():
-    #         if (isinstance(value, Field) or isinstance(value,
-    #                                                    _BaseFrame)):
-    #             self._meta[key] = value
-    #             if value.default == NOT_PROVIDED:
-    #                 value = None
-    #             else:
-    #                 value = value.default
-    #             self[key] = value
-    #     self._update_field.clear()
-    #     # if not self.include:
-    #     #     self.include.extend(self.__dict__)
-    #     if args and isinstance(args[0], dict):
-    #         for key, value in args[0].items():
-    #             if self.__class__.__dict__.keys().__contains__(key):
-    #                 self[key] = value
-    #     if kwargs:
-    #         if kwargs.keys().__contains__('data'):
-    #             data = kwargs.pop('data')
-    #             for key, value in data.items():
-    #                 if self.keys().__contains__(key):
-    #                     self[key] = value
-    #         for key, value in kwargs.items():
-    #             if self.__class__.__dict__.keys().__contains__(key):
-    #                 self[key] = value
-
-    # Get/Set attribute methods are overwritten to support for setting values
-    # against the `_document`. Attribute names are converted to camelcase.
-
-    # def __getattr__(self, item):
-    #     if name in self._fields:
-    #         return self.__dict__.get(item, None)
-    #     raise AttributeError(
-    #         "'{0}' has no attribute '{1}'".format(self.__class__.__name__, item)
-    #     )
-
-    # def __setattr__(self, key, value):
-    #
-    #     if (isinstance(value, Field) or isinstance(value,
-    #                                                _BaseFrame)):
-    #         cleaned = self.__class__.__dict__.get(key).clean(value, None)
-    #         self.__dict__.update({key: cleaned})
-    #     else:
-    #         super(_BaseFrame, self).__setattr__(key, value)
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -149,16 +96,13 @@ class _BaseFrame:
 
     # Serializing
 
-    def is_valid(self, full=True):
-
-        if full:
-            validation_list = self.__dict__.keys()
+    def is_valid(self):
+        if self._update_field:
+            validate_fields = self._update_field
         else:
-            validation_list = self._update_field
-        if '_id' not in validation_list and '_id' in self._meta.keys():
-            validation_list.add("_id")
+            validate_fields = self._meta.keys()
         for key, value in self._meta.items():
-            if key in validation_list:
+            if key in validate_fields:
                 try:
                     cleaned = value.clean(self[key])
                     self[key] = cleaned
@@ -213,17 +157,6 @@ class _BaseFrame:
                                 counter += 1
                     result[key] = self[key]
         return result
-        # include_data = {}
-        # for key in self._meta.keys():
-        #     if self.exclude:
-        #         if key not in self.exclude:
-        #             include_data[key] = self[key]
-        #     else:
-        #         if key in self.include:
-        #             include_data[key] = self[key]
-        # include_data = self._json_safe(include_data)
-        # # self._remove_keys(document_dict, self._private_fields)
-        # return include_data
 
     @classmethod
     def _json_safe(cls, value):
@@ -348,9 +281,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # The MongoDB client used to interface with the database
 
-    _client = MongoClient(
-        "mongodb://root:example@10.10.10.20:27018/test1?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
-
+    client = motor_asyncio.AsyncIOMotorClient(
+        "mongodb://root:example@10.10.10.20:27018/?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
+    _client = client.test1
     # The database on which this collection the class represents is located
     _db = None
 
@@ -385,14 +318,14 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # Operations
 
-    def save(self):
+    async def save(self):
         """Insert or Update document"""
         if self["_id"] is None:
-            self.insert()
+            await self.insert()
         else:
-            self.update()
+            await self.update()
 
-    def insert(self):
+    async def insert(self):
         """Insert this document"""
         # Send insert signal
         # signal('insert1').send(self.__class__, frames=[self])
@@ -407,12 +340,15 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # TODO -> IMPLEMENT SAGA
 
         # Insert the document and update the Id
-        self._id = self.get_collection().insert_one(document)
-
+        inserted_field = await self.get_collection().insert_one(document)
+        if inserted_field.inserted_id:
+            self._id = inserted_field.inserted_id
+            return True
+        return False
         # Send inserted signal
         # signal('inserted').send(self.__class__, frames=[self])
 
-    def unset(self, *fields):
+    async def unset(self, *fields):
         """Unset the given list of fields for this document."""
 
         # Send update signal
@@ -433,7 +369,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send updated signal
         signal('updated').send(self.__class__, frames=[self])
 
-    def update(self):
+    async def update(self):
         """
         Update this document. Optionally a specific list of fields to update can
         be specified.
@@ -445,27 +381,27 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # signal('update').send(self.__class__, frames=[self])
 
         # Check for selective updates
+        self.is_valid()
         document = {}
         if self._update_field:
-            self.is_valid()
             for field in self._update_field:
                 document[field] = self.__dict__[field]
         else:
-            self.is_valid()
             document = self.__dict__
-        obj_id = document["_id"]
+        # obj_id = document["_id"]
         document.pop("_id")
-
         # Prepare the document to be updated
         document = to_refs(document)
-
         # Update the document_
-        self.get_collection().update_one({'_id': ObjectId(document["_id"])}, {'$set': document})
+        update_result = await self.get_collection().update_one({'_id': ObjectId(self._id)}, {'$set': document})
 
+        if update_result.matched_count >= 1:
+            return True
+        return False
         # Send updated signal
         # signal('updated').send(self.__class__, frames=[self])
 
-    def upsert(self):
+    async def upsert(self):
         """
         Update or Insert this document depending on whether it exists or not.
         The presense of an `_id` value in the document is used to determine if
@@ -487,102 +423,121 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # performing the `upsert`.
         #
         if self.count({'_id': self._id}) == 0:
-            self.insert()
+            await self.insert()
         else:
-            self.update()
+            await self.update()
 
-    def delete(self):
+    async def delete(self):
         """Delete this document"""
 
-        assert '_id' in self.__dict__, "Can't delete documents without `_id`"
+        # assert '_id' in self.__dict__, "Can't delete documents without `_id`"
 
-        # Send delete signal
-        signal('delete').send(self.__class__, frames=[self])
+        # Send delete signal to child
+        if self._child_frames:
+            for child_frame in self._child_frames.keys():
+                cascade_delete = signal('delete')
+                cascade_delete.connect(self.s)
+                cascade_delete.send(frame=child_frame, _id=self._id)
+                # signal('delete').send(self.__class__, frames=child_frame)
 
+        self.is_valid()
         # Delete the document
-        self.get_collection().delete_one({'_id': self._id})
+        deleted_result = await self.get_collection().delete_one({'_id': ObjectId(self._id)})
 
+        if deleted_result.deleted_count >= 1:
+            return True
+        return False
         # Send deleted signal
-        signal('deleted').send(self.__class__, frames=[self])
+        # signal('deleted').send(self.__class__, frames=[self])
+
+    def s(self, *args, **kwargs):
+        print(kwargs)
+        print("signal for delete")
 
     @classmethod
-    def aggregate(cls, pipeline):
+    async def aggregate(cls, pipeline):
         documents = cls.get_collection().aggregate(pipeline)
-        if documents is None:
-            return
-        return [cls(d) for d in documents]
+        # if documents in None:
+        #     return
+        doc = []
+        async for d in documents:
+            doc.append(cls(d))
+        return doc
+
+    # async def insert_many(self):
+    #     """Insert a list of documents"""
+    #
+    #     # Ensure all documents have been converted to frames
+    #     # frames = await self._ensure_frames(documents)
+    #
+    #     # Send insert signal
+    #     # signal('insert').send(cls, frames=frames)
+    #
+    #     # Prepare the documents to be inserted
+    #
+    #     self._update_field.clear()
+    #     self.is_valid()
+    #
+    #     # documents = [to_refs(f.__dict__) for f in frames]
+    #     # Bulk insert
+    #     ids = await self.get_collection().insert_many(documents)
+    #     print(ids)
+    #
+    #     # Apply the Ids to the frames
+    #     for i, id in enumerate(ids):
+    #         frames[i]._id = id
+    #
+    #     # Send inserted signal
+    #     # signal('inserted').send(cls, frames=frames)
+    #
+    #     # return frames
+    #
+    # @classmethod
+    # async def update_many(cls, documents, *fields):
+    #     """
+    #     Update multiple documents. Optionally a specific list of fields to
+    #     update can be specified.
+    #     """
+    #
+    #     # Ensure all documents have been converted to frames
+    #     frames = cls._ensure_frames(documents)
+    #
+    #     all_count = len(documents)
+    #     assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
+    #         "Can't update documents without `_id`s"
+    #
+    #     # Send update signal
+    #     signal('update').send(cls, frames=frames)
+    #
+    #     # Prepare the documents to be updated
+    #
+    #     # Check for selective updates
+    #     if len(fields) > 0:
+    #         documents = []
+    #         for frame in frames:
+    #             document = {'_id': frame._id}
+    #             for field in fields:
+    #                 document[field] = cls._path_to_value(
+    #                     field,
+    #                     frame.__dict__
+    #                 )
+    #             documents.append(to_refs(document))
+    #     else:
+    #         documents = [to_refs(f.__dict__) for f in frames]
+    #
+    #     # Update the documents
+    #     requests = []
+    #     for document in documents:
+    #         _id = document.pop('_id')
+    #         requests.append(UpdateOne({'_id': _id}, {'$set': document}))
+    #
+    #     cls.get_collection().bulk_write(requests)
+    #
+    #     # Send updated signal
+    #     signal('updated').send(cls, frames=frames)
 
     @classmethod
-    def insert_many(cls, documents):
-        """Insert a list of documents"""
-
-        # Ensure all documents have been converted to frames
-        frames = cls._ensure_frames(documents)
-
-        # Send insert signal
-        signal('insert').send(cls, frames=frames)
-
-        # Prepare the documents to be inserted
-        documents = [to_refs(f.__dict__) for f in frames]
-
-        # Bulk insert
-        ids = cls.get_collection().insert_many(documents).inserted_ids
-
-        # Apply the Ids to the frames
-        for i, id in enumerate(ids):
-            frames[i]._id = id
-
-        # Send inserted signal
-        signal('inserted').send(cls, frames=frames)
-
-        return frames
-
-    @classmethod
-    def update_many(cls, documents, *fields):
-        """
-        Update multiple documents. Optionally a specific list of fields to
-        update can be specified.
-        """
-
-        # Ensure all documents have been converted to frames
-        frames = cls._ensure_frames(documents)
-
-        all_count = len(documents)
-        assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
-            "Can't update documents without `_id`s"
-
-        # Send update signal
-        signal('update').send(cls, frames=frames)
-
-        # Prepare the documents to be updated
-
-        # Check for selective updates
-        if len(fields) > 0:
-            documents = []
-            for frame in frames:
-                document = {'_id': frame._id}
-                for field in fields:
-                    document[field] = cls._path_to_value(
-                        field,
-                        frame.__dict__
-                    )
-                documents.append(to_refs(document))
-        else:
-            documents = [to_refs(f.__dict__) for f in frames]
-
-        # Update the documents
-        requests = []
-        for document in documents:
-            _id = document.pop('_id')
-            requests.append(UpdateOne({'_id': _id}, {'$set': document}))
-
-        cls.get_collection().bulk_write(requests)
-
-        # Send updated signal
-        signal('updated').send(cls, frames=frames)
-
-    @classmethod
-    def unset_many(cls, documents, *fields):
+    async def unset_many(cls, documents, *fields):
         """Unset the given list of fields for this document."""
 
         # Ensure all documents have been converted to frames
@@ -618,55 +573,55 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         signal('updated').send(cls, frames=frames)
 
     @classmethod
-    def delete_many(cls, documents):
+    async def delete_many(cls, **kwargs):
         """Delete multiple documents"""
 
         # Ensure all documents have been converted to frames
-        frames = cls._ensure_frames(documents)
+        # frames = cls._ensure_frames(documents)
 
-        all_count = len(documents)
-        assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
-            "Can't delete documents without `_id`s"
+        # all_count = len(documents)
+        # assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
+        #     "Can't delete documents without `_id`s"
 
         # Send delete signal
-        signal('delete').send(cls, frames=frames)
+        # signal('delete').send(cls, frames=frames)
 
         # Prepare the documents to be deleted
-        ids = [f._id for f in frames]
+        # ids = [f._id for f in frames]
 
         # Delete the documents
-        cls.get_collection().delete_many({'_id': {'$in': ids}})
+        deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
 
         # Send deleted signal
-        signal('deleted').send(cls, frames=frames)
+        # signal('deleted').send(cls, frames=frames)
 
-    @classmethod
-    def _ensure_frames(cls, documents):
-        """
-        Ensure all items in a list are frames by converting those that aren't.
-        """
-        frames = []
-        for document in documents:
-            if not isinstance(document, Frame):
-                frames.append(cls(document))
-            else:
-                frames.append(document)
-        return frames
+    # @classmethod
+    # async def _ensure_frames(cls, documents):
+    #     """
+    #     Ensure all items in a list are frames by converting those that aren't.
+    #     """
+    #     frames = []
+    #     for document in documents:
+    #         if not isinstance(document, Frame):
+    #             frames.append(cls(document))
+    #         else:
+    #             frames.append(document)
+    #     return frames
 
     # Querying
 
-    def reload(self, **kwargs):
+    async def reload(self, **kwargs):
         """Reload the document"""
         frame = self.one({'_id': self._id}, **kwargs)
         self.__dict__ = frame.__dict__
 
-    @classmethod
-    def by_id(cls, id, **kwargs):
-        """Get a document by ID"""
-        return cls.one({'_id': id}, **kwargs)
+    # @classmethod
+    # async def by_id(cls, id, **kwargs):
+    #     """Get a document by ID"""
+    #     return cls.one({'_id': id}, **kwargs)
 
     @classmethod
-    def count(cls, filter=None, **kwargs):
+    async def count(cls, filter=None, **kwargs):
         """Return a count of documents matching the filter"""
 
         if isinstance(filter, (Condition, Group)):
@@ -683,7 +638,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
             return cls.get_collection().estimated_document_count(**kwargs)
 
     @classmethod
-    def ids(cls, filter=None, **kwargs):
+    async def ids(cls, filter=None, **kwargs):
         """Return a list of Ids for documents matching the filter"""
 
         # Find the documents
@@ -699,7 +654,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         return [d['_id'] for d in list(documents)]
 
     @classmethod
-    def one(cls, filter=None, **kwargs):
+    async def one(cls, filter=None, **kwargs):
         """Return the first document matching the filter"""
 
         # Flatten the projection
@@ -709,18 +664,21 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         #     )
 
         # Find the document
-        if isinstance(filter, (Condition, Group)):
-            filter = filter.to_dict()
+        # if isinstance(filter, (Condition, Group)):
+        #     filter = filter.to_dict()
+
+        # for key, value in filter:
+        #     filter[key] = to_refs(value)
 
         if kwargs:
-            document = cls.get_collection().find_one(to_refs(filter), **kwargs)
+            document = await cls.get_collection().find_one(filter, kwargs)
         else:
-            document = cls.get_collection().find_one(to_refs(filter))
+            document = await cls.get_collection().find_one(filter)
 
         # Make sure we found a document
         if not document:
             return
-
+        return cls(document)
         # Dereference the document (if required)
         # if references:
         #     cls._dereference([document], references)
@@ -742,34 +700,39 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         #         # cls.__dict__[key] = document[key]
         #         # setattr(_BaseFrame,key,document[key])
         # print(cls.__dict__)
-        return cls(document)
         # return document
 
     @classmethod
-    def many(cls, filter=None, **kwargs):
+    async def many(cls, filter=None, **kwargs):
         """Return a list of documents matching the filter"""
 
         # Flatten the projection
-        kwargs['projection'], references, subs = \
-            cls._flatten_projection(
-                kwargs.get('projection', cls._default_projection)
-            )
+        # kwargs['projection'], references, subs = \
+        #     cls._flatten_projection(
+        #         kwargs.get('projection', cls._default_projection)
+        #     )
 
         # Find the documents
-        if isinstance(filter, (Condition, Group)):
-            filter = filter.to_dict()
+        # if isinstance(filter, (Condition, Group)):
+        #     filter = filter.to_dict()
 
-        documents = list(cls.get_collection().find(to_refs(filter), **kwargs))
+        if kwargs:
+            documents = cls.get_collection().find(filter, kwargs)
+        else:
+            documents = cls.get_collection().find(filter)
 
         # Dereference the documents (if required)
-        if references:
-            cls._dereference(documents, references)
+        # if references:
+        #     cls._dereference(documents, references)
 
         # Add sub-frames to the documents (if required)
-        if subs:
-            cls._apply_sub_frames(documents, subs)
+        # if subs:
+        #     cls._apply_sub_frames(documents, subs)
 
-        return [cls(d) for d in documents]
+        doc = []
+        async for d in documents:
+            doc.append(cls(d))
+        return doc
 
     @classmethod
     def _apply_sub_frames(cls, documents, subs):
