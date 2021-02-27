@@ -1,4 +1,3 @@
-import asyncio
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
@@ -6,12 +5,9 @@ from blinker import signal
 from bson.objectid import ObjectId
 from copy import deepcopy
 from datetime import date, datetime, timezone
-from pymongo import UpdateOne
 
-from db.fields import *
-from db.fields.fields import ObjectIdField
-from db.frames.queries import to_refs, Condition, Group
-from motor import MotorClient, motor_asyncio
+from base.db import to_refs, Condition, Group
+from motor import motor_asyncio
 
 __all__ = [
     'Frame',
@@ -97,20 +93,17 @@ class _BaseFrame:
     # Serializing
 
     def is_valid(self):
-        if self._update_field:
-            validate_fields = self._update_field
-        else:
-            validate_fields = self._meta.keys()
-        for key, value in self._meta.items():
-            if key in validate_fields:
-                try:
-                    cleaned = value.clean(self[key])
-                    self[key] = cleaned
-                except ValidationError as e:
-                    er = {key: e.messages[0]}
-                    self.errors.append(er)
-        if self.errors:
-            raise ValidationError(message=str(self.errors))
+        validated_fields = self._update_field if self._update_field else self._meta.keys()
+        errors = list()
+        for key in validated_fields:
+            try:
+                cleaned = self._meta[key].clean(self[key])
+                self[key] = cleaned
+            except ValidationError as e:
+                er = {key: e.messages[0]}
+                errors.append(er)
+        if errors:
+            raise ValidationError(str(errors))
         return True
 
     def clean(self, value):
@@ -343,7 +336,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         inserted_field = await self.get_collection().insert_one(document)
         if inserted_field.inserted_id:
             self._id = inserted_field.inserted_id
-            return True
+            return str(self._id)
         return False
         # Send inserted signal
         # signal('inserted').send(self.__class__, frames=[self])
@@ -590,7 +583,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # ids = [f._id for f in frames]
 
         # Delete the documents
-        deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
+        # deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
 
         # Send deleted signal
         # signal('deleted').send(cls, frames=frames)

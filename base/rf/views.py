@@ -1,26 +1,27 @@
 """
 Provides an APIView class that is the base of all views in REST framework.
 """
-from django.conf import settings
+
+# ----------------------------------------------------------------------------
+from django.http.response import HttpResponse
+
+from base.rf.Request import Request
+from base.rf.permissions import AllowAny
+from django.db import connection, transaction
 from django.core.exceptions import PermissionDenied
-from django.db import connection, models, transaction
-from django.http import Http404
-from django.http.response import HttpResponseBase, HttpResponse
-from django.utils.cache import cc_delim_re, patch_vary_headers
 from django.utils.decorators import classonlymethod
+# ----------------------------------------------------------------------------
+from base.rf.settings import api_settings
+from base.rf import exceptions, formatting
+# ----------------------------------------------------------------------------
 from django.utils.encoding import smart_str
-from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
-
-from rest_framework import exceptions, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
-
-from rest_framework.response import Response
-from rest_framework.schemas import DefaultSchema
-from rest_framework.settings import api_settings
-from rest_framework.utils import formatting
+from django.http import Http404
 import asyncio
-from rest_framework.request import Request
+
+
+# ----------------------------------------------------------------------------
+from base.rf.response import Response
 
 
 def get_view_name(view):
@@ -125,11 +126,9 @@ class AsyncAPIView(View):
 
     @property
     def allowed_methods(self):
-        # print('**********************')
         methods = self._allowed_methods()
         # print(methods)
         methods.remove('HEAD')
-        # print(str(methods))
         return methods
 
     @property

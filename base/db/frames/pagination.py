@@ -5,7 +5,7 @@ Support for paginating frames.
 from copy import deepcopy
 import math
 
-from db.frames.queries import Condition, Group, to_refs
+from base.db import Condition, Group, to_refs
 
 
 __all__ = (
