@@ -1,4 +1,3 @@
-import asyncio
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
@@ -6,12 +5,10 @@ from blinker import signal
 from bson.objectid import ObjectId
 from copy import deepcopy
 from datetime import date, datetime, timezone
-from pymongo import UpdateOne
 
-from db.fields import *
-from db.fields.fields import ObjectIdField
-from db.frames.queries import to_refs, Condition, Group
-from motor import MotorClient, motor_asyncio
+from base.db.fields import *
+from base.db.frames_motor.queries import to_refs, Condition, Group
+from motor import motor_asyncio
 
 __all__ = [
     'Frame',
@@ -56,9 +53,10 @@ class _BaseFrame:
         if args and isinstance(args[0], dict):
             for key, value in args[0].items():
                 if isinstance(self.__class__.__dict__[key], ForeignFrame):
-                    for embedded_value in value:
-                        for key, value in self._child_frames.items():
-                            self[key].append(value.frame(embedded_value))
+                    if value:
+                        for embedded_value in value:
+                            for key, value in self._child_frames.items():
+                                self[key].append(value.frame(embedded_value))
                 elif self.__class__.__dict__.keys().__contains__(key):
                     self[key] = value
         if kwargs:
@@ -134,6 +132,8 @@ class _BaseFrame:
                         if isinstance(item, _BaseFrame):
                             self[key][counter] = item.to_json_type()
                             counter += 1
+                if isinstance(self[key], ObjectId):
+                    self[key] = str(self[key])
                 result[key] = self[key]
         elif self.exclude:
             for key in self.__dict__:
@@ -145,6 +145,8 @@ class _BaseFrame:
                             if isinstance(item, _BaseFrame):
                                 self[key][counter] = item.to_json_type()
                                 counter += 1
+                    if isinstance(self[key], ObjectId):
+                        self[key] = str(self[key])
                     result[key] = self[key]
         else:
             for key in self.__dict__:
@@ -155,6 +157,8 @@ class _BaseFrame:
                             if isinstance(item, _BaseFrame):
                                 self[key][counter] = item.to_json_type()
                                 counter += 1
+                    if isinstance(self[key], ObjectId):
+                        self[key] = str(self[key])
                     result[key] = self[key]
         return result
 
@@ -321,9 +325,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     async def save(self):
         """Insert or Update document"""
         if self["_id"] is None:
-            await self.insert()
+            return await self.insert()
         else:
-            await self.update()
+            return await self.update()
 
     async def insert(self):
         """Insert this document"""
@@ -440,7 +444,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                 cascade_delete.send(frame=child_frame, _id=self._id)
                 # signal('delete').send(self.__class__, frames=child_frame)
 
-        self.is_valid()
         # Delete the document
         deleted_result = await self.get_collection().delete_one({'_id': ObjectId(self._id)})
 
@@ -464,77 +467,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
             doc.append(cls(d))
         return doc
 
-    # async def insert_many(self):
-    #     """Insert a list of documents"""
-    #
-    #     # Ensure all documents have been converted to frames
-    #     # frames = await self._ensure_frames(documents)
-    #
-    #     # Send insert signal
-    #     # signal('insert').send(cls, frames=frames)
-    #
-    #     # Prepare the documents to be inserted
-    #
-    #     self._update_field.clear()
-    #     self.is_valid()
-    #
-    #     # documents = [to_refs(f.__dict__) for f in frames]
-    #     # Bulk insert
-    #     ids = await self.get_collection().insert_many(documents)
-    #     print(ids)
-    #
-    #     # Apply the Ids to the frames
-    #     for i, id in enumerate(ids):
-    #         frames[i]._id = id
-    #
-    #     # Send inserted signal
-    #     # signal('inserted').send(cls, frames=frames)
-    #
-    #     # return frames
-    #
-    # @classmethod
-    # async def update_many(cls, documents, *fields):
-    #     """
-    #     Update multiple documents. Optionally a specific list of fields to
-    #     update can be specified.
-    #     """
-    #
-    #     # Ensure all documents have been converted to frames
-    #     frames = cls._ensure_frames(documents)
-    #
-    #     all_count = len(documents)
-    #     assert len([f for f in frames if '_id' in f.__dict__]) == all_count, \
-    #         "Can't update documents without `_id`s"
-    #
-    #     # Send update signal
-    #     signal('update').send(cls, frames=frames)
-    #
-    #     # Prepare the documents to be updated
-    #
-    #     # Check for selective updates
-    #     if len(fields) > 0:
-    #         documents = []
-    #         for frame in frames:
-    #             document = {'_id': frame._id}
-    #             for field in fields:
-    #                 document[field] = cls._path_to_value(
-    #                     field,
-    #                     frame.__dict__
-    #                 )
-    #             documents.append(to_refs(document))
-    #     else:
-    #         documents = [to_refs(f.__dict__) for f in frames]
-    #
-    #     # Update the documents
-    #     requests = []
-    #     for document in documents:
-    #         _id = document.pop('_id')
-    #         requests.append(UpdateOne({'_id': _id}, {'$set': document}))
-    #
-    #     cls.get_collection().bulk_write(requests)
-    #
-    #     # Send updated signal
-    #     signal('updated').send(cls, frames=frames)
+    @classmethod
+    async def counts(cls, pipeline):
+        pipeline.append({"$count": "count"})
+        documents = cls.get_collection().aggregate(pipeline)
+        async for d in documents:
+            return d.get("count")
 
     @classmethod
     async def unset_many(cls, documents, *fields):
