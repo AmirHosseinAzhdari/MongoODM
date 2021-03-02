@@ -52,13 +52,14 @@ class _BaseFrame:
         self._update_field.clear()
         if args and isinstance(args[0], dict):
             for key, value in args[0].items():
-                if isinstance(self.__class__.__dict__[key], ForeignFrame):
-                    if value:
-                        for embedded_value in value:
-                            for key, value in self._child_frames.items():
-                                self[key].append(value.frame(embedded_value))
-                elif self.__class__.__dict__.keys().__contains__(key):
-                    self[key] = value
+                if key in self.__dict__.keys():
+                    if isinstance(self.__class__.__dict__[key], ForeignFrame):
+                        if value:
+                            for embedded_value in value:
+                                for key, value in self._child_frames.items():
+                                    self[key].append(value.frame(embedded_value))
+                    elif self.__class__.__dict__.keys().__contains__(key):
+                        self[key] = value
         if kwargs:
             if kwargs.keys().__contains__('data'):
                 data = kwargs.pop('data')
