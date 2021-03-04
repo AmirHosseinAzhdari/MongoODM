@@ -31,7 +31,6 @@ class _BaseFrame:
     errors = list()
 
     def __init__(self, *args, **kwargs):
-        self.exclude = list()
         self.errors = list()
         self._document = dict()
         self._meta = dict()
