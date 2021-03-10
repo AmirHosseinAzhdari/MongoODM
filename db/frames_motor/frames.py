@@ -1,3 +1,5 @@
+import asyncio
+
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
@@ -134,6 +136,8 @@ class _BaseFrame:
                             counter += 1
                 if isinstance(self[key], ObjectId):
                     self[key] = str(self[key])
+                if isinstance(self[key], datetime):
+                    self[key] = datetime.timestamp(self[key])
                 result[key] = self[key]
         elif self.exclude:
             for key in self.__dict__:
@@ -147,6 +151,8 @@ class _BaseFrame:
                                 counter += 1
                     if isinstance(self[key], ObjectId):
                         self[key] = str(self[key])
+                    if isinstance(self[key], datetime):
+                        self[key] = datetime.timestamp(self[key])
                     result[key] = self[key]
         else:
             for key in self.__dict__:
@@ -159,6 +165,8 @@ class _BaseFrame:
                                 counter += 1
                     if isinstance(self[key], ObjectId):
                         self[key] = str(self[key])
+                    if isinstance(self[key], datetime):
+                        self[key] = datetime.timestamp(self[key])
                     result[key] = self[key]
         return result
 
@@ -285,10 +293,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     # The MongoDB client used to interface with the database
 
-    client = motor_asyncio.AsyncIOMotorClient(
-        "mongodb://root:example@10.10.10.20:27018/?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
-    _client = client.test1
-    # The database on which this collection the class represents is located
+    # client = motor_asyncio.AsyncIOMotorClient(
+    #     "mongodb://root:example@10.10.10.20:27018/?authSource=admin&readPreference=primary&appname=MongoDB%20Compass&ssl=false")
+    _client = None
+    # The database 1on which this collection the class represents is located
     _db = None
 
     # The database collection this class represents
@@ -331,9 +339,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     async def insert(self):
         """Insert this document"""
-        # Send insert signal
-        # signal('insert1').send(self.__class__, frames=[self])
-        # Prepare the document to be inserted
+
         self._update_field.clear()
         self.is_valid()
 
@@ -379,11 +385,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         be specified.
         """
 
-        # assert '_id' in self.__dict__, "Can't update documents without `_id`"
-
-        # Send update signal
-        # signal('update').send(self.__class__, frames=[self])
-
         # Check for selective updates
         self.is_valid()
         document = {}
@@ -399,11 +400,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Update the document_
         update_result = await self.get_collection().update_one({'_id': ObjectId(self._id)}, {'$set': document})
 
-        if update_result.matched_count >= 1:
-            return True
-        return False
-        # Send updated signal
-        # signal('updated').send(self.__class__, frames=[self])
+        return update_result.matched_count + update_result.modified_count
 
     async def upsert(self):
         """
@@ -447,7 +444,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Delete the document
         deleted_result = await self.get_collection().delete_one({'_id': ObjectId(self._id)})
 
-        if deleted_result.deleted_count >= 1:
+        if deleted_result.deleted_count > 0:
             return True
         return False
         # Send deleted signal
@@ -528,7 +525,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # ids = [f._id for f in frames]
 
         # Delete the documents
-        deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
+        # deleted_res = await cls.get_collection().delete_many({'_id': {'$in': ids}})
 
         # Send deleted signal
         # signal('deleted').send(cls, frames=frames)
@@ -594,78 +591,23 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     async def one(cls, filter=None, **kwargs):
         """Return the first document matching the filter"""
-
-        # Flatten the projection
-        # kwargs['projection'], references, subs = \
-        #     cls._flatten_projection(
-        #         kwargs.get('projection', cls._default_projection)
-        #     )
-
-        # Find the document
-        # if isinstance(filter, (Condition, Group)):
-        #     filter = filter.to_dict()
-
-        # for key, value in filter:
-        #     filter[key] = to_refs(value)
-
         if kwargs:
             document = await cls.get_collection().find_one(filter, kwargs)
         else:
             document = await cls.get_collection().find_one(filter)
 
-        # Make sure we found a document
         if not document:
             return
         return cls(document)
-        # Dereference the document (if required)
-        # if references:
-        #     cls._dereference([document], references)
-
-        # Add sub-frames to the document (if required)
-        # if subs:
-        #     cls._apply_sub_frames([document], subs)
-        # print(document)
-        # for key, value in document.items():
-        #     if key in cls.__dict__.keys():
-        #         print(key)
-        #         print(value)
-        #         setattr(cls,key,value)
-        # print(cls.__dict__)
-        # print(document)
-        # for key, value in document.items():
-        #     if cls.__dict__.keys().__contains__(key):
-        #         # print(document[key])
-        #         # cls.__dict__[key] = document[key]
-        #         # setattr(_BaseFrame,key,document[key])
-        # print(cls.__dict__)
-        # return document
 
     @classmethod
     async def many(cls, filter=None, **kwargs):
         """Return a list of documents matching the filter"""
 
-        # Flatten the projection
-        # kwargs['projection'], references, subs = \
-        #     cls._flatten_projection(
-        #         kwargs.get('projection', cls._default_projection)
-        #     )
-
-        # Find the documents
-        # if isinstance(filter, (Condition, Group)):
-        #     filter = filter.to_dict()
-
         if kwargs:
             documents = cls.get_collection().find(filter, kwargs)
         else:
             documents = cls.get_collection().find(filter)
-
-        # Dereference the documents (if required)
-        # if references:
-        #     cls._dereference(documents, references)
-
-        # Add sub-frames to the documents (if required)
-        # if subs:
-        #     cls._apply_sub_frames(documents, subs)
 
         doc = []
         async for d in documents:

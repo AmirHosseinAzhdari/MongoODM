@@ -36,7 +36,7 @@ DEFAULTS = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         # 'rest_framework.authentication.SessionAuthentication',
         # 'rest_framework.authentication.BasicAuthentication'
-        'AuthMS.middleware.Authenticate'
+        # 'DigiExam.middleware.Authenticate'
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
@@ -73,8 +73,8 @@ DEFAULTS = {
     'VERSION_PARAM': 'version',
 
     # Authentication
-    'UNAUTHENTICATED_USER': 'django.contrib.auth.models.AnonymousUser',
-    'UNAUTHENTICATED_TOKEN': None,
+    # 'UNAUTHENTICATED_USER': 'django.contrib.auth.models.AnonymousUser',
+    # 'UNAUTHENTICATED_TOKEN': None,
 
     # View configuration
     'VIEW_NAME_FUNCTION': 'rest_framework.views.get_view_name',

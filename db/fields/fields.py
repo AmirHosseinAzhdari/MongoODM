@@ -866,16 +866,6 @@ class ArrayField(Field):
         self.to = to
 
     def clean(self, value):
-        try:
-            value = json.loads(value)
-        except:
-            raise exceptions.ValidationError(
-                self.error_messages['invalid list format'],
-                code='invalid_list_format',
-            )
-        # if isinstance(self.to, _BaseFrame):
-        #     for idx, item in enumerate(value):
-        #         value[idx] = self.to.is_valid(item)
         if isinstance(self.to, Field):
             for idx, item in enumerate(value):
                 value[idx] = self.to.clean(item)
@@ -950,7 +940,7 @@ class ObjectIdField(Field):
                     self.error_messages[f'“{value}” value must be an valid Id.'],
                     code=f'“{value}” value must be an valid Id.',
                 )
-        return value
+            return ObjectId(value)
 
 
 class ForeignFrame:

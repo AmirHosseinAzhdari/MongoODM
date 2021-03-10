@@ -206,7 +206,10 @@ class AsyncAPIView(View):
                 )
 
     async def initial(self, request, *args, **kwargs):
-        await self.check_permissions(request)
+        try:
+            await self.check_permissions(request)
+        except Exception:
+            return Response(status=401)
 
     async def dispatch(self, request, *args, **kwargs):
         """
@@ -271,7 +274,6 @@ class AsyncAPIView(View):
         Returns the initial request object.
         """
         # parser_context = self.get_parser_context(request)
-
         request._user = request.user
         return Request(
             request,
