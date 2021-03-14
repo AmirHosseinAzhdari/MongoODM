@@ -241,9 +241,9 @@ class BooleanField(Field):
         if value in (True, False):
             # 1/0 are equal to True/False. bool() converts former to latter.
             return bool(value)
-        if value in ('t', 'True', '1'):
+        if value in ('t', 'True', '1', 'true'):
             return True
-        if value in ('f', 'False', '0'):
+        if value in ('f', 'False', '0', 'false'):
             return False
         raise exceptions.ValidationError(
             self.error_messages['invalid_nullable' if self.null else 'invalid'],
@@ -878,23 +878,36 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, redis=None, collection=None, frame=None, service=None, on_delete=None
-                 ):
+    def __init__(self, redis=None, to=None, frame=None, service=None, on_delete=None, null=False):
         super(ForeignKey, self).__init__()
         self.on_delete = on_delete
         self.redis = redis
-        self.collection = collection
+        self.to = to
         self.frame = frame
         self.service = service
+        self.null = null
 
     def to_python(self, value):
-        try:
-            value = ObjectId(value)
-        except:
-            raise exceptions.ValidationError(
-                self.error_messages['invalid object id'],
-                code='invalid_object_id',
-            )
+        if self.null and value in self.empty_values:
+            return None
+        if value and not isinstance(value, ObjectId):
+            try:
+                return ObjectId(value)
+            except:
+                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
+        if self.null:
+            return value
+        return ObjectId()
+
+    def clean(self, value):
+        super(ForeignKey, self).clean(value)
+        if value is not None:
+            if len(str(value)) != 24:
+                raise exceptions.ValidationError(
+                    self.error_messages[f'“{value}” value must be an valid Id.'],
+                    code=f'“{value}” value must be an valid Id.',
+                )
+            return ObjectId(value)
 
 
 class EmbeddedField(Field):
@@ -944,8 +957,8 @@ class ObjectIdField(Field):
 
 
 class ForeignFrame:
-    def __init__(self, redis=False, frame=None, queue=False, on_delete=False):
+    def __init__(self, redis=False, frame=None, queue=False, on_delete=None):
         self.on_delete = on_delete
-        self.redis = redis
         self.frame = frame
+        self.redis = redis
         self.queue = queue
