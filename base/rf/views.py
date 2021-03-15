@@ -3,8 +3,12 @@ Provides an APIView class that is the base of all views in REST framework.
 """
 
 # ----------------------------------------------------------------------------
-from django.http.response import HttpResponse
+import sys
 
+from django.http.response import HttpResponse
+from rest_framework.views import APIView
+
+from DigiExam import settings
 from base.rf.Request import Request
 from base.rf.permissions import AllowAny
 from django.db import connection, transaction
@@ -12,13 +16,12 @@ from django.core.exceptions import PermissionDenied
 from django.utils.decorators import classonlymethod
 # ----------------------------------------------------------------------------
 from base.rf.settings import api_settings
-from base.rf import exceptions, formatting
+from base.rf import formatting, exceptions
 # ----------------------------------------------------------------------------
 from django.utils.encoding import smart_str
 from django.views.generic import View
 from django.http import Http404
 import asyncio
-
 
 # ----------------------------------------------------------------------------
 from base.rf.response import Response
@@ -73,7 +76,7 @@ def set_rollback():
         transaction.set_rollback(True)
 
 
-def exception_handler(exc, context):
+async def exception_handler(exc, context):
     """
     Returns the response that should be used for any given exception.
 
@@ -95,10 +98,10 @@ def exception_handler(exc, context):
         if getattr(exc, 'wait', None):
             headers['Retry-After'] = '%d' % exc.wait
 
-        if isinstance(exc.detail, (list, dict)):
-            data = exc.detail
+        if isinstance(exc.default_detail, (list, dict)):
+            data = exc.default_detail
         else:
-            data = {'detail': exc.detail}
+            data = {'detail': exc.default_detail}
 
         set_rollback()
         return Response(data, status=exc.status_code, headers=headers)
@@ -109,8 +112,9 @@ def exception_handler(exc, context):
 class AsyncAPIView(View):
     parser_classes = api_settings.DEFAULT_PARSER_CLASSES
     # renderer_classes = api_settings.DEFAULT_RENDERER_CLASSES
+    # authentication_classes = api_settings.DEFAULT_AUTHENTICATION_CLASSES
     content_negotiation_class = api_settings.DEFAULT_CONTENT_NEGOTIATION_CLASS
-    permission_classes = [AllowAny]
+    permission_classes = api_settings.DEFAULT_PERMISSION_CLASSES
 
     async def options(self, request, *args, **kwargs):
         response = HttpResponse()
@@ -127,8 +131,8 @@ class AsyncAPIView(View):
     @property
     def allowed_methods(self):
         methods = self._allowed_methods()
-        # print(methods)
-        methods.remove('HEAD')
+        # if methods['HEAD']:
+        # methods.remove('HEAD')
         return methods
 
     @property
@@ -168,11 +172,25 @@ class AsyncAPIView(View):
         """
         for permission in await self.get_permissions():
             if not permission.has_permission(request, self):
-                self.permission_denied(
+                await self.permission_denied(
                     request,
                     message=getattr(permission, 'message', None),
                     code=getattr(permission, 'code', None)
                 )
+
+    def raise_uncaught_exception(self, exc):
+        if settings.DEBUG:
+            request = self.request
+            renderer_format = getattr(request.accepted_renderer, 'format')
+            use_plaintext_traceback = renderer_format not in ('html', 'api', 'admin')
+            request.force_plaintext_errors(use_plaintext_traceback)
+        raise exc
+
+    def get_authenticators(self):
+        """
+        Instantiates and returns the list of authenticators that this view can use.
+        """
+        return [auth() for auth in self.authentication_classes]
 
     async def check_object_permissions(self, request, obj):
         """
@@ -188,7 +206,10 @@ class AsyncAPIView(View):
                 )
 
     async def initial(self, request, *args, **kwargs):
-        await self.check_permissions(request)
+        try:
+            await self.check_permissions(request)
+        except Exception:
+            return Response(status=401)
 
     async def dispatch(self, request, *args, **kwargs):
         """
@@ -231,7 +252,7 @@ class AsyncAPIView(View):
         Determine which renderer and media type to use render the response.
         """
         # renderers = self.get_renderers()
-        conneg = self.get_content_negotiator()
+        self.get_content_negotiator()
 
         # try:
         #     return conneg.select_renderer(request, renderers, self.format_kwarg)
@@ -253,11 +274,10 @@ class AsyncAPIView(View):
         Returns the initial request object.
         """
         # parser_context = self.get_parser_context(request)
-
+        request._user = request.user
         return Request(
             request,
             parsers=self.get_parsers(),
-            # authenticators=self.get_authenticators(),
             negotiator=self.get_content_negotiator(),
             # parser_context=parser_context
         )
@@ -287,10 +307,8 @@ class AsyncAPIView(View):
         # if vary_headers is not None:
         #     patch_vary_headers(response, cc_delim_re.split(vary_headers))
 
-        # resp = await response
         # for key, value in self.headers.items():
         #     resp[key] = value
-
         return await response
 
 #

@@ -113,7 +113,7 @@ class APIException(Exception):
         # self.detail = _get_error_details(detail, code)
 
     def __str__(self):
-        return str(self.detail)
+        return str(self.default_detail)
 
     def get_codes(self):
         """
@@ -156,6 +156,36 @@ class ValidationError(APIException):
             detail = [detail]
 
         # self.detail = _get_error_details(detail, code)
+
+
+class NotFoundFromDb(BaseException):
+    status_code = status.HTTP_404_NOT_FOUND
+    default_detail = _('Nothing Found From Database')
+    default_code = 'DatabaseEmpty'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.default_detail = message
+
+
+class UserBlocked(BaseException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = _('This User Is Blocked')
+    default_code = 'UserBlocked'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.default_detail = message
+
+
+class UnAuthorized(BaseException):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    default_detail = _('User UnAuthorized')
+    default_code = 'Unauthorized'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.default_detail = message
 
 
 class ParseError(APIException):

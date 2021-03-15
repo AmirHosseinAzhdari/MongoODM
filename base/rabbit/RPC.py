@@ -1,55 +1,57 @@
+import json
+import os
 import uuid
-from functools import partial
 
-from aio_pika import *
 import asyncio
+
+from .publisher import publisher
+from .consumer import consumer, IncomingMessage
 
 
 class RPCClass:
 
-    # -------------------------------------------------------------------------------------------------
-    @staticmethod
-    async def rpc_consumer(exchange_type=None, queue_name=None, call_back_method=None, loop=None):
-        connection = await connect(
-            "amqp://user:example@10.10.10.20:5672/", loop=loop
-        )
+    def __init__(self, loop=None, broker_url=os.getenv('BROKER_URL'), exchange_type=None, exchange_name=None,
+                 queue_name=os.getenv('QUEUE_NAME'), routing_key=None, durable=False):
+        self.connection = None
+        self.channel = None
+        self.queue_name = queue_name
+        if not self.queue_name.__contains__('rpc'):
+            self.queue_name += '_rpc'
+        self.exchange_type = exchange_type
+        self.broker_url = broker_url
+        self.routing_key = routing_key
+        self.exchange_name = exchange_name
+        self.durable = durable
+        self.futures = {}
+        if loop:
+            self.loop = loop
+        else:
+            self.loop = asyncio.get_event_loop()
 
-        channel = await connection.channel()
+    async def connect(self):
+        await consumer(loop=self.loop, callback=self.on_response, queue_name=self.queue_name, durable=True,
+                       exchange_name=self.exchange_name, exchange_type=self.exchange_type, broker_url=self.broker_url)
 
-        queue = await channel.declare_queue(queue_name)
-    # -------------------------------------------------------------------------------------------------
+    async def on_response(self, message: IncomingMessage):
+        try:
+            future = self.futures.pop(message.correlation_id)
+            async with message.process():
+                future.set_result(message.body)
+        except:
+            message.nack()
 
-        await queue.consume(partial(
-            call_back_method, channel.default_exchange)
-        )
-
-    # -------------------------------------------------------------------------------------------------
-    @staticmethod
-    async def rpc_client(message_body, routing_key=None, callback_queue=None, loop=None):
-        if routing_key is None:
-            return "routing key can not be null"
-    # -------------------------------------------------------------------------------------------------
-
-        connection = await connect(
-            "amqp://user:example@10.10.10.20:5672/", loop=loop
-        )
-
-        channel = await connection.channel()
-
+    async def call(self, target, model=None, key=None, value=None):
         correlation_id = str(uuid.uuid4())
-    # -------------------------------------------------------------------------------------------------
-        await channel.default_exchange.publish(
-            Message(
-                body=str(message_body).encode(),
-                content_type="application/json",
-                correlation_id=correlation_id,
-                reply_to=callback_queue,
-                content_encoding='utf-8',
-                delivery_mode=DeliveryMode.NOT_PERSISTENT,
-
-            ),
-            routing_key=routing_key,
-        )
-
-        await connection.close()
-    # -------------------------------------------------------------------------------------------------
+        future = self.loop.create_future()
+        self.futures[correlation_id] = future
+        data = {
+            'op': 'get',
+            'model': model,
+            'key': key,
+            'value': value
+        }
+        data = json.dumps(data)
+        await publisher(data, routing_key=target, reply_to=self.queue_name, loop=self.loop,
+                        exchange_type=self.exchange_type, exchange_name=self.exchange_name,
+                        correlation_id=correlation_id, broker_url=self.broker_url)
+        return json.loads(await future)

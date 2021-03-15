@@ -143,7 +143,7 @@ class IsAdminUser(BasePermission):
     """
 
     def has_permission(self, request, view):
-        return bool(request.user and request.user.is_staff)
+        return bool(request.user and request.user.is_superuser)
 
 
 class IsAuthenticatedOrReadOnly(BasePermission):
@@ -161,7 +161,7 @@ class IsAuthenticatedOrReadOnly(BasePermission):
 
 class DjangoModelPermissions(BasePermission):
     """
-    The request is authenticated using `django.contrib.auth` permissions.
+    The request is authenticated using `django.contrib.authorizationApp` permissions.
     See: https://docs.djangoproject.com/en/dev/topics/auth/#permissions
 
     It ensures that the user is authenticated, and has the appropriate
