@@ -178,11 +178,10 @@ class Field:  # RegisterLookupMixin
     def validate(self, value):
         if value not in self.empty_values:
             return value
-
         if value is None and not self.null:
             raise exceptions.ValidationError(self.error_messages['null'], code='null')
 
-        if value not in self.empty_values:
+        if not self.null and value in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
 
     def clean(self, value):
@@ -878,7 +877,7 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, redis=None, to=None, frame=None, service=None, on_delete=None, null=False):
+    def __init__(self, to=None, redis=None, frame=None, service=None, on_delete=None, null=False):
         super(ForeignKey, self).__init__()
         self.on_delete = on_delete
         self.redis = redis

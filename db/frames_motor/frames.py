@@ -441,44 +441,87 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         else:
             await self.update()
 
-    async def delete(self):
-        """Delete this document"""
-        async with await self._client.start_session() as s:
-            async with s.start_transaction():
-                # try:
-                if self._child_frames:
-                    # start transaction
-                    res = await self.cascade(frames=self._child_frames, frame_id=self._id)
-                    if not res:
-                        pass
-                # Delete the document
-                deleted_result = await self.get_collection().delete_one({'_id': ObjectId(self._id)})
-                if deleted_result.deleted_count > 0:
-                    return True
-                return False
-                # except:
-                #     s.abort_transaction()
-                #     return False
-
-    @staticmethod
-    async def delete_many(frames, frame_id):
+    @classmethod
+    async def delete_many(cls, key, id):
         """Delete multiple documents"""
-        for key, value in frames.items():
-            await (value.frame).get_collection().delete_many({key: ObjectId(frame_id)})
+        if not isinstance(id, ObjectId):
+            id = ObjectId(id)
+        await cls.get_collection().delete_many({key: ObjectId(id)})
 
         return True
 
-    async def cascade(self, frames, frame_id):
+    async def delete(self):
+        """Delete this document"""
+        print(self._child_frames)
+        for key, value in self._child_frames.items():
+            print(key, value.frame, value.on_delete)
+            res = await value.on_delete(key=value)
+        await self.cascade(frames=self._child_frames)
+        return False
+        # async with await self._client.start_session() as s:
+        #     async with s.start_transaction():
+        #         # try:
+        #         if self._child_frames:
+        #             res = await self.cascade(frames=self._child_frames, frame_id=self._id)
+        #             if not res:
+        #                 s.abort_transaction()
+        #         # Delete the document
+        #         deleted_result = await self.get_collection().delete_one({'_id': ObjectId(self._id)})
+        #         if deleted_result.deleted_count > 0:
+        #             return True
+        #         return False
+        # except:
+        #     s.abort_transaction()
+        #     return False
+
+    async def get_key(self, frame):
+        for key, value in self._meta.keys():
+            if isinstance(value, ForeignKey):
+                if isinstance(value.to, frame):
+                    return key, False
+            if isinstance(value, ArrayField):
+                if isinstance(value.to, ForeignKey):
+                    if isinstance(value.to.to, frame):
+                        return key, True
+
+    async def cascade(self, **kwargs):
         """Delete multiple documents"""
-        for key, value in frames.items():
-            res = {(key, value) for key, value in value.frame.__dict__.items() if isinstance(value, ForeignFrame)}
-            if len(res) > 0:
-                child = await value.frame.one(filter={key: ObjectId(frame_id)})
-                if child is not None:
-                    for item in res:
-                        await self.cascade(frames=item, frame_id=child._id)
-                    await value.frame.get_collection().delete_many({key: ObjectId(frame_id)})
-            return True
+        print(kwargs)
+        print(kwargs.keys())
+        print(kwargs.values())
+        for key in kwargs.keys():
+            child = kwargs[key].frame
+            pr_key, array = await child.get_key(self)
+            if array:
+                children = await child.aggregate(
+                    [{"$match": {"related_url": "sallam"}}, {"$unset": "related_url.sallam"}])
+            else:
+                if child._child_frames:
+                    children = await child.many({pr_key: self._id})
+                    for ch in children:
+                        ch.delete()
+                else:
+                    await child.delete_many(pr_key, self._id)
+        return True
+        # for key, value in frames.items():
+        #     res = {(key, value) for key, value in value.frame.__dict__.items() if isinstance(value, ForeignFrame)}
+        #     if len(res) > 0:
+        #         child = await value.frame.one(filter={key: ObjectId(frame_id)})
+        #         if child is not None:
+        #             for item in res:
+        #                 await self.cascade(frames=item, frame_id=child._id)
+        #     await value.frame.get_collection().delete_many({key: ObjectId(frame_id)})
+        # return True
+
+    async def restrict(self, **kwargs):
+        """Not delete a document if its have a child"""
+        for key in kwargs.keys():
+            child = kwargs[key].frame
+            pr_key, array = await child.get_key(self)
+            children = await child.one({pr_key: self._id})
+            if children:
+                return False
+        return True
 
     # @classmethod
     # async def _ensure_frames(cls, documents):
