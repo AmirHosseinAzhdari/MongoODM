@@ -40,12 +40,12 @@ class RPCClass:
         except:
             message.nack()
 
-    async def call(self, target, model=None, key=None, value=None):
+    async def call(self, target, op='get', model=None, key=None, value=None):
         correlation_id = str(uuid.uuid4())
         future = self.loop.create_future()
         self.futures[correlation_id] = future
         data = {
-            'op': 'get',
+            'op': op,
             'model': model,
             'key': key,
             'value': value
