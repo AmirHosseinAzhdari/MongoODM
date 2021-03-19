@@ -66,11 +66,17 @@ class _BaseFrame:
         self._update_field.add(key)
 
     def _set_items(self, dictionary):
+        if isinstance(dictionary, dict):
+            dictionary = dictionary.items()
         for key, value in dictionary:
-            if key in self.__dict__.keys():
-                if key in self._child_frames.keys():
-                    if value:
-                        self[key] = self._child_frames[key].frame(value)
+            if key in self._child_frames.keys():
+                if value:
+                    pass
+                    # self[key] = self._child_frames[key].frame(value)
+            else:
+                meta_val = self._meta.get(key, None)
+                if meta_val:
+                    setattr(self, key, meta_val.clean(value))
                 else:
                     setattr(self, key, value)
 
@@ -79,10 +85,9 @@ class _BaseFrame:
 
     def _get_document(self):
         document = dict()
-        valid_keys = self._update_field if self._update_field else self._meta.keys()
+        # valid_keys = self._update_field if self._update_field else self._meta.keys()
         for key in self._meta.keys():
-            if key in valid_keys:
-                print(type(self._meta[key]))
+            if True:
                 if isinstance(self._meta[key], ArrayField):
                     value = list()
                     for item in self.__class__.__dict__[key]:
@@ -100,6 +105,8 @@ class _BaseFrame:
     # Serializing
 
     def is_valid(self):
+        if not getattr(self, '_id', None):
+            self._update_field.clear()
         if self._update_field:
             validate_fields = self._update_field
         else:
@@ -1087,6 +1094,7 @@ class SubFrame(_BaseFrame):
     for dot notation access to attributes.
     """
 
+    # The documents defined fields
     # The documents defined fields
     _fields = set()
 
