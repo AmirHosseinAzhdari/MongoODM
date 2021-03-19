@@ -38,6 +38,6 @@ async def publisher(message, routing_key=None, exchange_type=None, exchange_name
     if correlation_id:
         send_message.correlation_id = correlation_id
     if reply_to:
-        message.reply_to = reply_to
+        send_message.reply_to = reply_to
     await exchange.publish(send_message, routing_key=routing_key)
     await connection.close()

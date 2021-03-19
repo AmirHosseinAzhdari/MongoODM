@@ -23,8 +23,6 @@ from django.forms.widgets import (
 )
 import magic
 
-# from db.frames.frames import _BaseFrame
-
 __all__ = [
     'BooleanField', 'CharField',
     'DateField', 'DateTimeField',
@@ -178,10 +176,11 @@ class Field:  # RegisterLookupMixin
     def validate(self, value):
         if value not in self.empty_values:
             return value
+
         if value is None and not self.null:
             raise exceptions.ValidationError(self.error_messages['null'], code='null')
 
-        if not self.null and value in self.empty_values:
+        if value not in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
 
     def clean(self, value):
@@ -868,7 +867,7 @@ class ArrayField(Field):
         if isinstance(self.to, Field):
             for idx, item in enumerate(value):
                 value[idx] = self.to.clean(item)
-        return value
+            return value
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -877,36 +876,24 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, to=None, redis=None, frame=None, service=None, on_delete=None, null=False):
+    def __init__(self, to, redis=None, collection=None, frame=None, service=None, on_delete=None):
         super(ForeignKey, self).__init__()
         self.on_delete = on_delete
         self.redis = redis
-        self.to = to
+        self.collection = collection
         self.frame = frame
         self.service = service
-        self.null = null
+        self.to = to
 
     def to_python(self, value):
-        if self.null and value in self.empty_values:
-            return None
-        if value and not isinstance(value, ObjectId):
-            try:
-                return ObjectId(value)
-            except:
-                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
-        if self.null:
+        try:
+            value = ObjectId(value)
             return value
-        return ObjectId()
-
-    def clean(self, value):
-        super(ForeignKey, self).clean(value)
-        if value is not None:
-            if len(str(value)) != 24:
-                raise exceptions.ValidationError(
-                    self.error_messages[f'“{value}” value must be an valid Id.'],
-                    code=f'“{value}” value must be an valid Id.',
-                )
-            return ObjectId(value)
+        except:
+            raise exceptions.ValidationError(
+                self.error_messages['invalid object id'],
+                code='invalid_object_id',
+            )
 
 
 class EmbeddedField(Field):
@@ -929,7 +916,6 @@ class EmbeddedField(Field):
 
 
 class ObjectIdField(Field):
-
     def __init__(self, *args, **kwargs):
         super(ObjectIdField, self).__init__(max_length=24, *args, **kwargs)
 
@@ -941,19 +927,26 @@ class ObjectIdField(Field):
                 return ObjectId(value)
             except:
                 raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
+        elif isinstance(value, ObjectId):
+            return value
         if self.null:
             return value
         return ObjectId()
 
     def clean(self, value):
-        value = super(ObjectIdField, self).clean(value)
-        if value:
-            return ObjectId(value)
+        if value is not None:
+            if len(str(value)) != 24:
+                raise exceptions.ValidationError(
+                    self.error_messages[f'“{value}” value must be an valid Id.'],
+                    code=f'“{value}” value must be an valid Id.',
+                )
+        value = self.to_python(value)
+        return value
 
 
 class ForeignFrame:
-    def __init__(self, redis=False, frame=None, queue=False, on_delete=None):
+    def __init__(self, redis=False, frame=None, queue=False, on_delete=False):
         self.on_delete = on_delete
-        self.frame = frame
         self.redis = redis
+        self.frame = frame
         self.queue = queue

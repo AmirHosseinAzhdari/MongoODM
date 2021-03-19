@@ -1,11 +1,9 @@
-import json
-import os
-import uuid
-
-import asyncio
-
-from .publisher import publisher
 from .consumer import consumer, IncomingMessage
+from .publisher import publisher
+import asyncio
+import json
+import uuid
+import os
 
 
 class RPCClass:
@@ -23,14 +21,19 @@ class RPCClass:
         self.exchange_name = exchange_name
         self.durable = durable
         self.futures = {}
-        if loop:
-            self.loop = loop
-        else:
-            self.loop = asyncio.get_event_loop()
+        self.loop = loop
+        self.connected = False
 
-    async def connect(self):
+    async def connect(self, loop=None):
+        if self.connected:
+            return
+        if not self.loop and not loop:
+            raise Exception()
+        if not self.loop:
+            self.loop = loop
         await consumer(loop=self.loop, callback=self.on_response, queue_name=self.queue_name, durable=True,
                        exchange_name=self.exchange_name, exchange_type=self.exchange_type, broker_url=self.broker_url)
+        self.connected = True
 
     async def on_response(self, message: IncomingMessage):
         try:
@@ -40,7 +43,7 @@ class RPCClass:
         except:
             message.nack()
 
-    async def call(self, target, op='get', model=None, key=None, value=None):
+    async def call(self, target, op='get', model=None, key=None, value=None, query=None):
         correlation_id = str(uuid.uuid4())
         future = self.loop.create_future()
         self.futures[correlation_id] = future
@@ -48,7 +51,8 @@ class RPCClass:
             'op': op,
             'model': model,
             'key': key,
-            'value': value
+            'value': value,
+            'query': query
         }
         data = json.dumps(data)
         await publisher(data, routing_key=target, reply_to=self.queue_name, loop=self.loop,

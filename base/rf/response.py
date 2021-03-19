@@ -15,7 +15,7 @@ class Response(JsonResponse):
             else:
                 final_msgs.update({'other': m})
         result = {'result': result, 'status': status_code, 'messages': final_msgs, 'data': data}
-        status = kwargs.pop('status')
+        status = kwargs.pop('status', None)
         if status is None:
             if status_code < 300:
                 status = 200
