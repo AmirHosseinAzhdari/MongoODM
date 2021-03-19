@@ -888,6 +888,7 @@ class ForeignKey(Field):
     def to_python(self, value):
         try:
             value = ObjectId(value)
+            return value
         except:
             raise exceptions.ValidationError(
                 self.error_messages['invalid object id'],
