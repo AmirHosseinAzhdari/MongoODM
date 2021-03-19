@@ -28,14 +28,13 @@ class _BaseFrame:
     include = list()
     exclude = list()
     _meta = {}
-    _update_field = set()
     errors = list()
 
     def __init__(self, *args, **kwargs):
+        self._update_field = set()
         self.errors = list()
         self._document = dict()
         self._meta = dict()
-        self._update_field = set()
         self._child_frames = dict()
         for key, value in self.__class__.__dict__.items():
             if isinstance(value, Field):
@@ -63,9 +62,8 @@ class _BaseFrame:
         setattr(self, key, value)
 
     def __setattr__(self, key, value):
-        if key != '_update_field':
-            super(_BaseFrame, self).__setattr__(key, value)
-            self._update_field.add(key)
+        super(_BaseFrame, self).__setattr__(key, value)
+        self._update_field.add(key)
 
     def _set_items(self, dictionary):
         for key, value in dictionary:
@@ -84,9 +82,10 @@ class _BaseFrame:
         valid_keys = self._update_field if self._update_field else self._meta.keys()
         for key in self._meta.keys():
             if key in valid_keys:
+                print(type(self._meta[key]))
                 if isinstance(self._meta[key], ArrayField):
                     value = list()
-                    for item in self[key]:
+                    for item in self.__class__.__dict__[key]:
                         if isinstance(item, _BaseFrame):
                             value.append(item._get_document())
                         else:
