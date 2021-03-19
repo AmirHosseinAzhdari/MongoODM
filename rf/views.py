@@ -8,7 +8,7 @@ import sys
 from django.http.response import HttpResponse
 from rest_framework.views import APIView
 
-from DigiExam import settings
+from WorkSpaceMS import settings
 from base.rf.Request import Request
 from base.rf.permissions import AllowAny
 from django.db import connection, transaction

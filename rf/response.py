@@ -8,8 +8,14 @@ class Response(JsonResponse):
             messages = list()
         if not isinstance(messages, list):
             messages = list(messages)
-        result = {'result': result, 'status': status_code, 'messages': messages, 'data': data}
-        status = kwargs.pop('status')
+        final_msgs = dict()
+        for m in messages:
+            if isinstance(m, dict):
+                final_msgs.update(m)
+            else:
+                final_msgs.update({'other': m})
+        result = {'result': result, 'status': status_code, 'messages': final_msgs, 'data': data}
+        status = kwargs.pop('status', None)
         if status is None:
             if status_code < 300:
                 status = 200
