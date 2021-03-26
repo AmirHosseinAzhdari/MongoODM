@@ -876,8 +876,8 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, to, redis=None, collection=None, frame=None, service=None, on_delete=None):
-        super(ForeignKey, self).__init__()
+    def __init__(self, to, redis=None, collection=None, frame=None, service=None, on_delete=None, *args, **kwargs):
+        super(ForeignKey, self).__init__(*args, **kwargs)
         self.on_delete = on_delete
         self.redis = redis
         self.collection = collection
@@ -887,7 +887,10 @@ class ForeignKey(Field):
 
     def to_python(self, value):
         try:
-            value = ObjectId(value)
+            if not value:
+                return value
+            if not isinstance(value, ObjectId):
+                value = ObjectId(value)
             return value
         except:
             raise exceptions.ValidationError(

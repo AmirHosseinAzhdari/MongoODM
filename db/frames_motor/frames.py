@@ -74,11 +74,7 @@ class _BaseFrame:
                     pass
                     # self[key] = self._child_frames[key].frame(value)
             else:
-                meta_val = self._meta.get(key, None)
-                if meta_val:
-                    setattr(self, key, meta_val.clean(value))
-                else:
-                    setattr(self, key, value)
+                setattr(self, key, value)
 
     def get(self, name, default=None):
         return self.__dict__.get(name, default)

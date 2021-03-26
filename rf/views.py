@@ -1,29 +1,22 @@
 """
 Provides an APIView class that is the base of all views in REST framework.
 """
-
-# ----------------------------------------------------------------------------
-import sys
-
 from django.http.response import HttpResponse
-from rest_framework.views import APIView
 
 from WorkSpaceMS import settings
 from base.rf.Request import Request
-from base.rf.permissions import AllowAny
 from django.db import connection, transaction
 from django.core.exceptions import PermissionDenied
 from django.utils.decorators import classonlymethod
 # ----------------------------------------------------------------------------
 from base.rf.settings import api_settings
-from base.rf import formatting, exceptions
+from base.rf import formatting, exceptions, status
 # ----------------------------------------------------------------------------
 from django.utils.encoding import smart_str
 from django.views.generic import View
 from django.http import Http404
 import asyncio
 
-# ----------------------------------------------------------------------------
 from base.rf.response import Response
 
 
@@ -209,7 +202,7 @@ class AsyncAPIView(View):
         try:
             await self.check_permissions(request)
         except Exception:
-            return Response(status=401)
+            return True
 
     async def dispatch(self, request, *args, **kwargs):
         """
@@ -222,7 +215,8 @@ class AsyncAPIView(View):
         self.request = request
         self.headers = self.default_response_headers  # deprecate?
 
-        await self.initial(request, *args, **kwargs)
+        if await self.initial(request, *args, **kwargs):
+            return Response(messages=['Access denied'], status_code=401, status=status.HTTP_401_UNAUTHORIZED)
 
         if request.method.lower() in self.http_method_names:
             handler = getattr(self, request.method.lower(),
