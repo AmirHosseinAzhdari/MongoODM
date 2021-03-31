@@ -15,8 +15,17 @@ from motor import motor_asyncio
 
 __all__ = [
     'Frame',
-    'SubFrame'
+    'SubFrame',
+    'RESTRICT',
+    'CASCADE',
+    'SET_NULL',
+    'SET_DEFAULT'
 ]
+
+CASCADE = 'cascade'
+RESTRICT = 'restrict'
+SET_NULL = 'set_null'
+SET_DEFAULT = 'set_default'
 
 
 class _BaseFrame:
@@ -48,6 +57,7 @@ class _BaseFrame:
                 self[key] = value
             elif isinstance(value, ForeignFrame):
                 self._child_frames[key] = value
+        self._update_field.clear()
         if args and isinstance(args[0], dict):
             self._set_items(args[0].items())
         if kwargs:
@@ -55,7 +65,6 @@ class _BaseFrame:
                 data = kwargs.pop('data')
                 self._set_items(data)
             self._set_items(kwargs)
-        self._update_field.clear()
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -65,7 +74,8 @@ class _BaseFrame:
 
     def __setattr__(self, key, value):
         super(_BaseFrame, self).__setattr__(key, value)
-        self._update_field.add(key)
+        if key in self._meta.keys():
+            self._update_field.add(key)
 
     def _set_items(self, dictionary):
         if isinstance(dictionary, dict):
@@ -83,8 +93,8 @@ class _BaseFrame:
 
     def _get_document(self):
         document = dict()
-        # valid_keys = self._update_field if self._update_field else self._meta.keys()
-        for key in self._meta.keys():
+        valid_keys = self._update_field if self._update_field else self._meta.keys()
+        for key in valid_keys:
             if True:
                 if isinstance(self._meta[key], ArrayField):
                     value = list()
@@ -415,15 +425,13 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     async def delete(self):
         """Delete this document"""
         if self._child_frames:
-            for key, value in self._child_frames.items():
-                if value.on_delete == Frame.restrict:
-                    res = await value.on_delete(self, key=key, value=value)
-                    if not res:
+            for value in self._child_frames.values():
+                if value.on_delete == RESTRICT:
+                    if not getattr(self, value.on_delete, None)(value):
                         return False
-            for key, value in self._child_frames.items():
-                if not value.on_delete == Frame.restrict:
-                    res = await value.on_delete(self, key=key, value=value)
-                    if not res:
+            for value in self._child_frames.values():
+                if not value.on_delete == RESTRICT:
+                    if not getattr(self, value.on_delete, None)(value):
                         return False
         delete_res = await self.get_collection().delete_one({"_id": ObjectId(self._id)})
         if delete_res.deleted_count >= 1:
@@ -448,9 +456,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                     if value.to == str_frame:
                         return key, True, value.default
 
-    async def cascade(self, **kwargs):
+    async def cascade(self, value=None):
         """Delete multiple documents"""
-        child = kwargs["value"].frame
+        child = value.frame
         pr_key, array, default_value = await child().get_key(self)
         if array:
             children = await child.many({pr_key: ObjectId(self._id)})
@@ -466,9 +474,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                 await child.get_collection().delete_many({pr_key: ObjectId(self._id)})
         return True
 
-    async def restrict(self, **kwargs):
+    async def restrict(self, value=None):
         """Not delete a document if its have a child"""
-        child = kwargs["value"].frame
+        child = value.frame
         pr_key, array, default_value = await child().get_key(self)
         if array:
             children = await child.many({pr_key: ObjectId(self._id)})
@@ -484,9 +492,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                 return False
         return True
 
-    async def set_null(self, **kwargs):
+    async def set_null(self, value=None):
         """set null for all child of document"""
-        child = kwargs["value"].frame
+        child = value.frame
         pr_key, array, default_value = await child().get_key(self)
         if array:
             children = await child.many({pr_key: ObjectId(self._id)})
@@ -503,9 +511,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                                                          {"$set": {pr_key: None}})
         return True
 
-    async def set_default(self, **kwargs):
+    async def set_default(self, value=None):
         """set default value for all child of document"""
-        child = kwargs["value"].frame
+        child = value.frame
         pr_key, array, default_value = await child().get_key(self)
         if array:
             children = await child.many({pr_key: ObjectId(self._id)})
@@ -552,7 +560,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         async for d in documents:
             return d.get("count")
         # result = await documents
-        # print(result)
 
     @classmethod
     async def insert_many(cls, documents):
@@ -599,7 +606,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     #     # documents = [to_refs(f.__dict__) for f in frames]
     #     # Bulk insert
     #     ids = await self.get_collection().insert_many(documents)
-    #     print(ids)
     #
     #     # Apply the Ids to the frames
     #     for i, id in enumerate(ids):
@@ -1042,11 +1048,11 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         for frame in frames:
             frame.modified = datetime.now(timezone.utc)
 
-    @classmethod
-    def cascade(cls, ref_cls, field, frames):
-        """Apply a cascading delete (does not emit signals)"""
-        ids = [to_refs(f[field]) for f in frames if f.get(field)]
-        ref_cls.get_collection().delete_many({'_id': {'$in': ids}})
+    # @classmethod
+    # def cascade(cls, ref_cls, field, frames):
+    #     """Apply a cascading delete (does not emit signals)"""
+    #     ids = [to_refs(f[field]) for f in frames if f.get(field)]
+    #     ref_cls.get_collection().delete_many({'_id': {'$in': ids}})
 
     @classmethod
     def nullify(cls, ref_cls, field, frames):

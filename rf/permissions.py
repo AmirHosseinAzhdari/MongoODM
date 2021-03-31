@@ -1,6 +1,7 @@
 """
 Provides a set of pluggable permission policies.
 """
+from bson import ObjectId
 from django.http import Http404
 
 from base.rf import exceptions
@@ -54,14 +55,14 @@ class AND:
 
     def has_permission(self, request, view):
         return (
-            self.op1.has_permission(request, view) and
-            self.op2.has_permission(request, view)
+                self.op1.has_permission(request, view) and
+                self.op2.has_permission(request, view)
         )
 
     def has_object_permission(self, request, view, obj):
         return (
-            self.op1.has_object_permission(request, view, obj) and
-            self.op2.has_object_permission(request, view, obj)
+                self.op1.has_object_permission(request, view, obj) and
+                self.op2.has_object_permission(request, view, obj)
         )
 
 
@@ -72,14 +73,14 @@ class OR:
 
     def has_permission(self, request, view):
         return (
-            self.op1.has_permission(request, view) or
-            self.op2.has_permission(request, view)
+                self.op1.has_permission(request, view) or
+                self.op2.has_permission(request, view)
         )
 
     def has_object_permission(self, request, view, obj):
         return (
-            self.op1.has_object_permission(request, view, obj) or
-            self.op2.has_object_permission(request, view, obj)
+                self.op1.has_object_permission(request, view, obj) or
+                self.op2.has_object_permission(request, view, obj)
         )
 
 
@@ -135,6 +136,40 @@ class IsAuthenticated(BasePermission):
 
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated)
+
+
+class IsWorkSpaceOwner(BasePermission):
+
+    def has_permission(self, request, view):
+        try:
+            request.user.workspace = ObjectId(request.user.workspace)
+
+            return bool(request.user and request.user.is_authenticated and request.user.is_owner)
+        except AttributeError as e:
+            return False
+
+
+class IsWorkSpaceUser(BasePermission):
+
+    def has_permission(self, request, view):
+        try:
+            request.user.workspace = ObjectId(request.user.workspace)
+
+            return bool(request.user and request.user.is_authenticated)
+        except AttributeError as e:
+            return False
+
+
+class IsWorkSpaceAccountant(BasePermission):
+
+    def has_permission(self, request, view):
+        try:
+            request.user.workspace = ObjectId(request.user.workspace)
+
+            return bool(request.user and request.user.is_authenticated and (
+                        request.user.is_owner or request.user.title != 'کاربر عادی'))
+        except AttributeError as e:
+            return False
 
 
 class IsAdminUser(BasePermission):
@@ -203,7 +238,7 @@ class DjangoModelPermissions(BasePermission):
 
     def _queryset(self, view):
         assert hasattr(view, 'get_queryset') \
-            or getattr(view, 'queryset', None) is not None, (
+               or getattr(view, 'queryset', None) is not None, (
             'Cannot apply {} on a view that does not set '
             '`.queryset` or have a `.get_queryset()` method.'
         ).format(self.__class__.__name__)
@@ -223,7 +258,7 @@ class DjangoModelPermissions(BasePermission):
             return True
 
         if not request.user or (
-           not request.user.is_authenticated and self.authenticated_users_only):
+                not request.user.is_authenticated and self.authenticated_users_only):
             return False
 
         queryset = self._queryset(view)
