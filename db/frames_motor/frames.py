@@ -94,11 +94,12 @@ class _BaseFrame:
     def _get_document(self):
         document = dict()
         valid_keys = self._update_field if self._update_field else self._meta.keys()
-        for key in valid_keys:
-            if True:
+        for key in self._meta.keys():
+            if key in valid_keys:
+
                 if isinstance(self._meta[key], ArrayField):
                     value = list()
-                    for item in self.__class__.__dict__[key]:
+                    for item in self[key]:
                         if isinstance(item, _BaseFrame):
                             value.append(item._get_document())
                         else:
@@ -113,7 +114,7 @@ class _BaseFrame:
     # Serializing
 
     def is_valid(self):
-        if not getattr(self, '_id', None):
+        if not (getattr(self, '_id', None) and '_id' in self._meta.keys()):
             self._update_field.clear()
         if self._update_field:
             validate_fields = self._update_field
@@ -427,11 +428,11 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if self._child_frames:
             for value in self._child_frames.values():
                 if value.on_delete == RESTRICT:
-                    if not getattr(self, value.on_delete, None)(value):
+                    if not await getattr(self, value.on_delete, None)(value):
                         return False
             for value in self._child_frames.values():
                 if not value.on_delete == RESTRICT:
-                    if not getattr(self, value.on_delete, None)(value):
+                    if not await getattr(self, value.on_delete, None)(value):
                         return False
         delete_res = await self.get_collection().delete_one({"_id": ObjectId(self._id)})
         if delete_res.deleted_count >= 1:
