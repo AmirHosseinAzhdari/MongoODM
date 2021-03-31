@@ -3,7 +3,7 @@ Provides an APIView class that is the base of all views in REST framework.
 """
 from django.http.response import HttpResponse
 
-from WorkSpaceMS import settings
+from CommodityMS import settings
 from base.rf.Request import Request
 from django.db import connection, transaction
 from django.core.exceptions import PermissionDenied

@@ -1,7 +1,7 @@
 from aio_pika import *
 import asyncio
 import os
-from WorkSpaceMS.settings import QUEUE_NAME
+from CommodityMS.settings import QUEUE_NAME
 
 
 async def consumer(exchange_name=None, exchange_type=None, queue_name=QUEUE_NAME, durable=False,

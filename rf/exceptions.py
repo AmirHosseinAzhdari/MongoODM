@@ -139,6 +139,18 @@ class APIException(Exception):
 # from rest_framework import serializers
 # raise serializers.ValidationError('Value was invalid')
 
+class ValueErrorRf(BaseException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = _('Some Value Is not in right format')
+    default_code = 'ValueError'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.default_detail = message
+
+        # self.detail = _get_error_details(detail, code)
+
+
 class ValidationError(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = _('Invalid input.')

@@ -1,3 +1,5 @@
+import ast
+
 from bson import json_util
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
@@ -552,8 +554,36 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # result = await documents
         # print(result)
 
-    # async def insert_many(self):
-    #     """Insert a list of documents"""
+    @classmethod
+    async def insert_many(cls, documents):
+        """Insert a list of documents"""
+        error_list = list()
+        list_of_frames = list()
+        if isinstance(documents, list) and documents[0]:
+            if isinstance(documents[0], _BaseFrame):
+                for doc in documents:
+                    if doc._id is None:
+                        doc._document.pop('_id')
+                    list_of_frames.append(doc._get_document())
+            else:
+                for index, doc in enumerate(documents):
+                    frame = cls(doc)
+                    try:
+                        frame.is_valid()
+                    except Exception as e:
+                        error_list.append({"index": index, "errors": ast.literal_eval(e.message)})
+                        continue
+                    if frame._id is None:
+                        dd = frame._get_document()
+                        dd.pop('_id')
+                        list_of_frames.append(dd)
+                    else:
+                        list_of_frames.append(frame._get_document())
+        if error_list:
+            raise ValidationError(message=str(error_list))
+        inserted_ids = await cls.get_collection().insert_many(list_of_frames)
+        return True
+
     #
     #     # Ensure all documents have been converted to frames
     #     # frames = await self._ensure_frames(documents)

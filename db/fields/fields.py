@@ -849,12 +849,14 @@ class FileField(Field):
 class JSONField(Field):
 
     def to_python(self, value):
+        self.error_messages.update({'invalid': _('“%(value)s” value must be Json format.')})
         try:
             return json.loads(value)
         except:
             raise exceptions.ValidationError(
-                self.error_messages['invalid json format'],
+                self.error_messages['invalid'],
                 code='invalid_json_format',
+                params={"value": value}
             )
 
 
@@ -884,6 +886,7 @@ class ForeignKey(Field):
         self.frame = frame
         self.service = service
         self.to = to
+        self.error_messages.update({'invalid': _('“%(value)s” value must be ObjecdId.')})
 
     def to_python(self, value):
         try:
@@ -894,8 +897,10 @@ class ForeignKey(Field):
             return value
         except:
             raise exceptions.ValidationError(
-                self.error_messages['invalid object id'],
-                code='invalid_object_id',
+
+                message=self.error_messages['invalid'],
+                code='invalid',
+                params={"value": value}
             )
 
 
