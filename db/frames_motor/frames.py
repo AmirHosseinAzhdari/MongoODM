@@ -59,12 +59,12 @@ class _BaseFrame:
                 self._child_frames[key] = value
         self._update_field.clear()
         if args and isinstance(args[0], dict):
-            self._set_items(args[0].items())
+            self.set_items(args[0].items())
         if kwargs:
             if kwargs.keys().__contains__('data'):
                 data = kwargs.pop('data')
-                self._set_items(data)
-            self._set_items(kwargs)
+                self.set_items(data)
+            self.set_items(kwargs)
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -77,7 +77,7 @@ class _BaseFrame:
         if key in self._meta.keys():
             self._update_field.add(key)
 
-    def _set_items(self, dictionary):
+    def set_items(self, dictionary):
         if isinstance(dictionary, dict):
             dictionary = dictionary.items()
         for key, value in dictionary:
@@ -551,7 +551,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         #     return
         doc = []
         async for d in documents:
-            doc.append(cls(d))
+            doc.append(cls(d).is_valid())
         return doc
 
     @classmethod

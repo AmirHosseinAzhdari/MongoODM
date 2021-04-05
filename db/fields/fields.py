@@ -288,9 +288,11 @@ class CharField(Field):
         return "CharField"
 
     def to_python(self, value):
-        if isinstance(value, str) or value is None:
+        if value is None:
             return value
-        return str(value)
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
 
 
 class DateTimeCheckMixin:
@@ -672,9 +674,11 @@ class TextField(Field):
         return "TextField"
 
     def to_python(self, value):
-        if isinstance(value, str) or value is None:
+        if value is None:
             return value
-        return str(value)
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
 
 
 class TimeField(DateTimeCheckMixin, Field):

@@ -13,7 +13,7 @@ class Response(JsonResponse):
             if isinstance(m, dict):
                 final_msgs.update(m)
             else:
-                final_msgs.update({'other': m})
+                final_msgs.update({'general': m})
         status = kwargs.pop('status', None)
         if status is None:
             if status_code < 300:
