@@ -563,7 +563,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # result = await documents
 
     @classmethod
-    async def insert_many(cls, documents):
+    async def insert_many(cls, documents, ordered=True):
         """Insert a list of documents"""
         error_list = list()
         list_of_frames = list()
@@ -589,7 +589,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                         list_of_frames.append(frame._get_document())
         if error_list:
             raise ValidationError(message=str(error_list))
-        inserted_ids = await cls.get_collection().insert_many(list_of_frames)
+        inserted_ids = await cls.get_collection().insert_many(list_of_frames, ordered=ordered)
         return True
 
     #

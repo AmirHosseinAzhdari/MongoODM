@@ -938,7 +938,7 @@ class ObjectIdField(Field):
             try:
                 return ObjectId(value)
             except:
-                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
+                raise exceptions.ValidationError(message=f'“{value}” value must be valid Id.')
         elif isinstance(value, ObjectId):
             return value
         if self.null:
