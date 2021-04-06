@@ -1,9 +1,10 @@
 from aio_pika import *
 import asyncio
 import os
+from CommodityMS.settings import QUEUE_NAME
 
 
-async def consumer(exchange_name=None, exchange_type=None, queue_name=os.getenv('QUEUE_NAME'), durable=False,
+async def consumer(exchange_name=None, exchange_type=None, queue_name=QUEUE_NAME, durable=False,
                    callback=None, broker_url=os.getenv('BROKER_URL'), loop=None):
     """
     :param exchange_name: optional to use but if no value sets its will be declare default exchange

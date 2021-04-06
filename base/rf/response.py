@@ -13,8 +13,7 @@ class Response(JsonResponse):
             if isinstance(m, dict):
                 final_msgs.update(m)
             else:
-                final_msgs.update({'other': m})
-        result = {'result': result, 'status': status_code, 'messages': final_msgs, 'data': data}
+                final_msgs.update({'general': m})
         status = kwargs.pop('status', None)
         if status is None:
             if status_code < 300:
@@ -25,4 +24,8 @@ class Response(JsonResponse):
                 status = 400
             else:
                 status = 500
-        super(Response, self).__init__(data=result, status=status, *args, **kwargs)
+        if status >= 400:
+            result = False
+        result = {'result': result, 'status': status_code, 'messages': final_msgs, 'data': data}
+
+        super(Response, self).__init__(data=result, status=status, *args, *kwargs)

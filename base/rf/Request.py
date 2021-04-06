@@ -209,7 +209,10 @@ class Request:
         """
         More semantically correct name for request.GET.
         """
-        return self._request.GET
+        qp = {}
+        for key, value in self._request.GET.items():
+            qp.update({key: value.strip()})
+        return qp
 
     @property
     def data(self):

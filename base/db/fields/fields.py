@@ -288,9 +288,11 @@ class CharField(Field):
         return "CharField"
 
     def to_python(self, value):
-        if isinstance(value, str) or value is None:
+        if value is None:
             return value
-        return str(value)
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
 
 
 class DateTimeCheckMixin:
@@ -672,9 +674,11 @@ class TextField(Field):
         return "TextField"
 
     def to_python(self, value):
-        if isinstance(value, str) or value is None:
+        if value is None:
             return value
-        return str(value)
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
 
 
 class TimeField(DateTimeCheckMixin, Field):
@@ -849,12 +853,14 @@ class FileField(Field):
 class JSONField(Field):
 
     def to_python(self, value):
+        self.error_messages.update({'invalid': _('“%(value)s” value must be Json format.')})
         try:
             return json.loads(value)
         except:
             raise exceptions.ValidationError(
-                self.error_messages['invalid json format'],
+                self.error_messages['invalid'],
                 code='invalid_json_format',
+                params={"value": value}
             )
 
 
@@ -876,23 +882,29 @@ class ArrayField(Field):
 
 # ---------------------------------------------------------------------------------------------------
 class ForeignKey(Field):
-    def __init__(self, to, redis=None, collection=None, frame=None, service=None, on_delete=None):
-        super(ForeignKey, self).__init__()
+    def __init__(self, to, redis=None, collection=None, frame=None, service=None, on_delete=None, *args, **kwargs):
+        super(ForeignKey, self).__init__(*args, **kwargs)
         self.on_delete = on_delete
         self.redis = redis
         self.collection = collection
         self.frame = frame
         self.service = service
         self.to = to
+        self.error_messages.update({'invalid': _('“%(value)s” value must be ObjecdId.')})
 
     def to_python(self, value):
         try:
-            value = ObjectId(value)
+            if not value:
+                return value
+            if not isinstance(value, ObjectId):
+                value = ObjectId(value)
             return value
         except:
             raise exceptions.ValidationError(
-                self.error_messages['invalid object id'],
-                code='invalid_object_id',
+
+                message=self.error_messages['invalid'],
+                code='invalid',
+                params={"value": value}
             )
 
 
@@ -926,7 +938,7 @@ class ObjectIdField(Field):
             try:
                 return ObjectId(value)
             except:
-                raise exceptions.ValidationError(message=f'“{value}” value must be an valid Id.')
+                raise exceptions.ValidationError(message=f'“{value}” value must be valid Id.')
         elif isinstance(value, ObjectId):
             return value
         if self.null:
