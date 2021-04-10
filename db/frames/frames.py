@@ -1,7 +1,6 @@
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
-from blinker import signal
 from bson.objectid import ObjectId
 from copy import deepcopy
 from datetime import date, datetime, timezone

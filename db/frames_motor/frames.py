@@ -47,6 +47,7 @@ class _BaseFrame:
         self._document = dict()
         self._meta = dict()
         self._child_frames = dict()
+        self.additional = list()
         for key, value in self.__class__.__dict__.items():
             if isinstance(value, Field):
                 self._meta[key] = value
@@ -143,6 +144,7 @@ class _BaseFrame:
         types.
         """
         temp = list(self._meta.keys())
+        temp.extend(self.additional)
         items = list()
         if self.include:
             for key in temp:
@@ -546,12 +548,27 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     @classmethod
     async def aggregate(cls, pipeline):
+        additional = list()
+        for item in pipeline:
+            proj = item.get('$project', None)
+            if proj:
+                additional = list(proj.keys())
+                break
         documents = cls.get_collection().aggregate(pipeline)
         # if documents in None:
         #     return
         doc = []
+        count = 0
         async for d in documents:
-            doc.append(cls(d).is_valid())
+            res = cls(d).is_valid()
+            if count == 0:
+                if additional:
+                    for key in res._meta.keys():
+                        if key in additional:
+                            additional.remove(key)
+                    res.additional = additional
+                count += 1
+            doc.append(res)
         return doc
 
     @classmethod

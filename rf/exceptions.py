@@ -151,6 +151,16 @@ class ValueErrorRf(BaseException):
         # self.detail = _get_error_details(detail, code)
 
 
+class TicketClosed(BaseException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = _('Ticket is closed')
+    default_code = 'TicketClosed'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.default_detail = message
+
+
 class ValidationError(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = _('Invalid input.')
