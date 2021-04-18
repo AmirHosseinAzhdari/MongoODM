@@ -1,5 +1,6 @@
 from .consumer import consumer, IncomingMessage
 from .publisher import publisher
+import asyncio
 import json
 import uuid
 import os

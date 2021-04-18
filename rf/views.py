@@ -3,12 +3,13 @@ Provides an APIView class that is the base of all views in REST framework.
 """
 from django.http.response import HttpResponse
 
-from SupportMS import settings
+from CommodityMS import settings
 from base.rf.Request import Request
 from django.db import connection, transaction
 from django.core.exceptions import PermissionDenied
 from django.utils.decorators import classonlymethod
 # ----------------------------------------------------------------------------
+from base.rf.exceptions import MethodNotAllowed
 from base.rf.settings import api_settings
 from base.rf import formatting, exceptions, status
 # ----------------------------------------------------------------------------
@@ -224,8 +225,12 @@ class AsyncAPIView(View):
         else:
             handler = self.http_method_not_allowed
 
-        response = handler(request, *args, **kwargs)
-
+        try:
+            response = handler(request, *args, **kwargs)
+        except MethodNotAllowed:
+            return Response(messages=['Method Not Allowed'], status_code=405, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        except TypeError:
+            return Response(messages=['Requested page not found'], status_code=404, status=status.HTTP_404_NOT_FOUND)
         self.response = await self.finalize_response(request, response, *args, **kwargs)
         return self.response
 

@@ -388,14 +388,16 @@ class DateField(Field):
             #     # before casting them to dates (#17742).
             #     default_timezone = timezone.get_default_timezone()
             #     value = timezone.make_naive(value, default_timezone)
-            return value.date()
+            # return datetime.datetime(year=value.date().year, month=value.date().month, day=value.date().day, hour=0,
+            #                          minute=0, second=0)
+            return datetime.datetime.combine(value.date(), datetime.datetime.min.time())
         if isinstance(value, datetime.date):
-            return value
+            return datetime.datetime.combine(value, datetime.datetime.min.time())
 
         try:
             parsed = parse_date(value)
             if parsed is not None:
-                return parsed
+                return datetime.datetime.combine(parsed, datetime.datetime.min.time())
         except ValueError:
             raise exceptions.ValidationError(
                 self.error_messages['invalid_date'],

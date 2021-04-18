@@ -552,15 +552,14 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         for item in pipeline:
             proj = item.get('$project', None)
             if proj:
-                additional = list(proj.keys())
-                break
+                additional.extend(list(proj.keys()))
         documents = cls.get_collection().aggregate(pipeline)
         # if documents in None:
         #     return
         doc = []
         count = 0
         async for d in documents:
-            res = cls(d).is_valid()
+            res = cls(d)
             if count == 0:
                 if additional:
                     for key in res._meta.keys():
