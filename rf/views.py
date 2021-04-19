@@ -200,10 +200,7 @@ class AsyncAPIView(View):
                 )
 
     async def initial(self, request, *args, **kwargs):
-        try:
-            await self.check_permissions(request)
-        except Exception:
-            return True
+        await self.check_permissions(request)
 
     async def dispatch(self, request, *args, **kwargs):
         """
@@ -215,16 +212,16 @@ class AsyncAPIView(View):
         request = await self.initialize_request(request, *args, **kwargs)
         self.request = request
         self.headers = self.default_response_headers  # deprecate?
-
-        if await self.initial(request, *args, **kwargs):
-            return Response(messages=['Access denied'], status_code=401, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            await self.initial(request, *args, **kwargs)
+        except PermissionDenied:
+            return Response(messages=['Access denied'], status_code=403, status=status.HTTP_403_FORBIDDEN)
 
         if request.method.lower() in self.http_method_names:
             handler = getattr(self, request.method.lower(),
                               self.http_method_not_allowed)
         else:
             handler = self.http_method_not_allowed
-
         try:
             response = handler(request, *args, **kwargs)
         except MethodNotAllowed:
