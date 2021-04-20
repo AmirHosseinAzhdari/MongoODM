@@ -9,6 +9,7 @@ from django.db import connection, transaction
 from django.core.exceptions import PermissionDenied
 from django.utils.decorators import classonlymethod
 # ----------------------------------------------------------------------------
+from base.rf.exceptions import MethodNotAllowed
 from base.rf.settings import api_settings
 from base.rf import formatting, exceptions, status
 # ----------------------------------------------------------------------------
@@ -199,10 +200,7 @@ class AsyncAPIView(View):
                 )
 
     async def initial(self, request, *args, **kwargs):
-        try:
-            await self.check_permissions(request)
-        except Exception:
-            return True
+        await self.check_permissions(request)
 
     async def dispatch(self, request, *args, **kwargs):
         """
@@ -214,18 +212,22 @@ class AsyncAPIView(View):
         request = await self.initialize_request(request, *args, **kwargs)
         self.request = request
         self.headers = self.default_response_headers  # deprecate?
-
-        if await self.initial(request, *args, **kwargs):
-            return Response(messages=['Access denied'], status_code=401, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            await self.initial(request, *args, **kwargs)
+        except PermissionDenied:
+            return Response(messages=['Access denied'], status_code=403, status=status.HTTP_403_FORBIDDEN)
 
         if request.method.lower() in self.http_method_names:
             handler = getattr(self, request.method.lower(),
                               self.http_method_not_allowed)
         else:
             handler = self.http_method_not_allowed
-
-        response = handler(request, *args, **kwargs)
-
+        try:
+            response = handler(request, *args, **kwargs)
+        except MethodNotAllowed:
+            return Response(messages=['Method Not Allowed'], status_code=405, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        except TypeError:
+            return Response(messages=['Requested page not found'], status_code=404, status=status.HTTP_404_NOT_FOUND)
         self.response = await self.finalize_response(request, response, *args, **kwargs)
         return self.response
 

@@ -5,15 +5,22 @@ class Response(JsonResponse):
 
     def __init__(self, data=None, messages=None, status_code=200, result=True, *args, **kwargs):
         if messages is None:
-            messages = list()
+            messages = dict()
         if not isinstance(messages, list):
-            messages = list(messages)
+            messages = [messages]
         final_msgs = dict()
+        validations = dict()
         for m in messages:
             if isinstance(m, dict):
-                final_msgs.update(m)
+                general = m.get('general', None)
+                if general:
+                    final_msgs.update(m)
+                else:
+                    validations.update(m)
             else:
                 final_msgs.update({'general': m})
+        if validations:
+            final_msgs.update({'validations': validations})
         status = kwargs.pop('status', None)
         if status is None:
             if status_code < 300:
