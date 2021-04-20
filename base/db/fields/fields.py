@@ -880,10 +880,18 @@ class ArrayField(Field):
         self.to = to
 
     def clean(self, value):
-        if isinstance(self.to, Field):
-            for idx, item in enumerate(value):
-                value[idx] = self.to.clean(item)
-            return value
+        try:
+            if isinstance(self.to, Field):
+                for idx, item in enumerate(value):
+                    value[idx] = self.to.clean(item)
+                return value
+            raise exceptions.ValidationError(self.error_messages['invalid'],
+                                             code='invalid',
+                                             params={"value": value})
+        except Exception:
+            raise exceptions.ValidationError(self.error_messages['invalid'],
+                                             code='invalid',
+                                             params={"value": value})
 
 
 # ---------------------------------------------------------------------------------------------------

@@ -557,7 +557,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                             additional.remove(key)
                     res.additional = additional
                 count += 1
-            doc.append(res)
+            doc.append(res.is_valid(raise_exceptions=False))
         return doc
 
     @classmethod
@@ -581,7 +581,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                             additional.remove(key)
                     res.additional = additional
                 count += 1
-            doc.append(res.to_json_type())
+            doc.append(res.is_valid(raise_exceptions=False).to_json_type())
         return doc
 
     @classmethod
