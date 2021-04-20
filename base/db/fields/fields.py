@@ -27,7 +27,7 @@ __all__ = [
     'BooleanField', 'CharField',
     'DateField', 'DateTimeField',
     'EmailField', 'Field', 'FloatField', 'GenericIPAddressField',
-    'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField',
+    'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField', 'UTC_NOW', 'AUTO_NOW',
     'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey',
     'ObjectIdField',
     'EmbeddedField'
@@ -39,6 +39,14 @@ class Empty:
 
 
 class NOT_PROVIDED:
+    pass
+
+
+class UTC_NOW:
+    pass
+
+
+class AUTO_NOW:
     pass
 
 
@@ -390,14 +398,14 @@ class DateField(Field):
             #     value = timezone.make_naive(value, default_timezone)
             # return datetime.datetime(year=value.date().year, month=value.date().month, day=value.date().day, hour=0,
             #                          minute=0, second=0)
-            return datetime.datetime.combine(value.date(), datetime.datetime.min.time())
+            return value.date()
         if isinstance(value, datetime.date):
-            return datetime.datetime.combine(value, datetime.datetime.min.time())
+            return value
 
         try:
             parsed = parse_date(value)
             if parsed is not None:
-                return datetime.datetime.combine(parsed, datetime.datetime.min.time())
+                return parsed
         except ValueError:
             raise exceptions.ValidationError(
                 self.error_messages['invalid_date'],
@@ -951,8 +959,8 @@ class ObjectIdField(Field):
         if value is not None:
             if len(str(value)) != 24:
                 raise exceptions.ValidationError(
-                    self.error_messages[f'“{value}” value must be an valid Id.'],
-                    code=f'“{value}” value must be an valid Id.',
+                    f'“{value}” value must be an valid Id.',
+                    code='invalid',
                 )
         value = self.to_python(value)
         return value
