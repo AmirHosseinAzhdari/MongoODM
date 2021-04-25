@@ -190,6 +190,16 @@ class AlreadyInUse(BaseException):
             self.message = message
 
 
+class DatabaseSaveError(BaseException):
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    message = _('Error Storing the data in the database')
+    default_code = 'invalid'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.message = message
+
+
 class FrameValidation(BaseException):
     status_code = status.HTTP_404_NOT_FOUND
     message = {}
