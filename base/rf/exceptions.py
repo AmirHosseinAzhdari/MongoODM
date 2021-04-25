@@ -172,12 +172,32 @@ class ValueErrorRf(BaseException):
 
 class NotFoundFromDb(BaseException):
     status_code = status.HTTP_404_NOT_FOUND
-    default_detail = _('Nothing Found From Database')
+    message = _('Nothing Found From Database')
     default_code = 'DatabaseEmpty'
 
     def __init__(self, message=None):
         if message is not None:
-            self.default_detail = message
+            self.message = message
+
+
+class AlreadyInUse(BaseException):
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    message = _('This item is already in use and cannot be modified')
+    default_code = 'InUse'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.message = message
+
+
+class FrameValidation(BaseException):
+    status_code = status.HTTP_404_NOT_FOUND
+    message = {}
+    default_code = 'invalid'
+
+    def __init__(self, message=None):
+        if message is not None:
+            self.message = message
 
 
 class AlreadyExists(BaseException):

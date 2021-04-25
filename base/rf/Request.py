@@ -211,7 +211,7 @@ class Request:
         """
         qp = {}
         for key, value in self._request.GET.items():
-            qp.update({key: value.strip()})
+            qp.update({key: value.strip().replace('ي', 'ی').replace('ك', 'ک')})
         return qp
 
     @property

@@ -1,18 +1,15 @@
 import ast
 
-from bson import json_util
 from django.core.exceptions import ValidationError
 from contextlib import contextmanager
 
 # from blinker import signal
 from bson.objectid import ObjectId
-from copy import deepcopy
 from datetime import date, datetime, timezone
 
 from base.db.fields import ObjectIdField, ForeignFrame, NOT_PROVIDED, Field, ArrayField, EmbeddedField, ForeignKey, \
     UTC_NOW, AUTO_NOW, DateField, DateTimeField
 from base.db.frames_motor.queries import to_refs, Condition, Group
-from motor import motor_asyncio
 
 __all__ = [
     'Frame',
@@ -22,6 +19,8 @@ __all__ = [
     'SET_NULL',
     'SET_DEFAULT'
 ]
+
+from base.rf.exceptions import FrameValidation
 
 CASCADE = '_cascade'
 RESTRICT = '_restrict'
@@ -132,8 +131,11 @@ class _BaseFrame:
                 except ValidationError as e:
                     er = {key: e.messages[0]}
                     self.errors.append(er)
+                except FrameValidation as e:
+                    er = {key: e.message}
+                    self.errors.append(er)
         if self.errors and raise_exceptions:
-            raise ValidationError(self.errors)
+            raise FrameValidation(self.errors)
         return self
 
     def clean(self, value):
@@ -464,7 +466,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         update_result = await self.get_collection().update_one({'_id': self._id}, {'$push': {key: document}})
         return update_result.matched_count + update_result.modified_count
 
-
     @classmethod
     async def raw_update_one(cls, filter, update, **kwargs):
         update_result = await cls.get_collection().update_one(filter, update, **kwargs)
@@ -555,8 +556,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                     for key in res._meta.keys():
                         if key in additional:
                             additional.remove(key)
-                    res.additional = additional
                 count += 1
+            res.additional = additional
             doc.append(res.is_valid(raise_exceptions=False))
         return doc
 
@@ -579,8 +580,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                     for key in res._meta.keys():
                         if key in additional:
                             additional.remove(key)
-                    res.additional = additional
                 count += 1
+            res.additional = additional
             doc.append(res.is_valid(raise_exceptions=False).to_json_type())
         return doc
 
@@ -724,8 +725,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     #         {'$unset': unset}
     #     )
 
-        # Send updated signal
-        # signal('updated').send(cls, frames=frames)
+    # Send updated signal
+    # signal('updated').send(cls, frames=frames)
 
     @classmethod
     async def delete_many(cls, key, id):
@@ -769,7 +770,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         """Reload the document"""
         return self.one({'_id': self._id}, **kwargs)
 
-
     @classmethod
     async def count_by_filter(cls, filter=None, **kwargs):
         """Return a count of documents matching the filter"""
@@ -798,7 +798,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         )
 
         return [d['_id'] for d in list(documents)]
-
 
     @classmethod
     def nullify(cls, ref_cls, field, frames):

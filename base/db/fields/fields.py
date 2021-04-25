@@ -188,7 +188,7 @@ class Field:  # RegisterLookupMixin
         if value is None and not self.null:
             raise exceptions.ValidationError(self.error_messages['null'], code='null')
 
-        if value not in self.empty_values:
+        if not self.null and value in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
 
     def clean(self, value):
@@ -299,8 +299,8 @@ class CharField(Field):
         if value is None:
             return value
         if isinstance(value, str):
-            return value.strip()
-        return str(value).strip()
+            return value.strip().replace('ي', 'ی').replace('ك', 'ک')
+        return str(value).strip().replace('ي', 'ی').replace('ك', 'ک')
 
 
 class DateTimeCheckMixin:
@@ -687,8 +687,8 @@ class TextField(Field):
         if value is None:
             return value
         if isinstance(value, str):
-            return value.strip()
-        return str(value).strip()
+            return value.strip().replace('ي', 'ی').replace('ك', 'ک')
+        return str(value).strip().replace('ي', 'ی').replace('ك', 'ک')
 
 
 class TimeField(DateTimeCheckMixin, Field):
