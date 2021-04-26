@@ -76,14 +76,18 @@ def auth_middleware(get_response):
     """
     if asyncio.iscoroutinefunction(get_response):
         async def middleware(request):
-            authorize(request)
+            request = authorize(request)
+            if isinstance(request, Response):
+                return request
             response = await get_response(request)
             return response
 
     else:
 
         def middleware(request):
-            authorize(request)
+            request = authorize(request)
+            if isinstance(request, Response):
+                return request
             response = get_response(request)
             return response
 
