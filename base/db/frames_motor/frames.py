@@ -107,11 +107,12 @@ class _BaseFrame:
     def _get_document(self):
         document = dict()
         valid_keys = self._update_field if self._update_field else self._meta.keys()
-        for key in valid_keys:
-            if self[key]:
-                document[key] = self._get_document_value(self._meta[key], self[key])
-            else:
-                document[key] = None
+        for key in self._meta.keys():
+            if key in valid_keys:
+                if self[key]:
+                    document[key] = self._get_document_value(self._meta[key], self[key])
+                else:
+                    document[key] = self[key]
         return document
 
     # Serializing
