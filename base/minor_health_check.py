@@ -24,6 +24,7 @@ async def check_memory_status():
 
 
 async def health_check_minor():
-    await connect(BROKER_URL)
+    connection = await connect(BROKER_URL)
+    await connection.close()
     await Frame.get_db().list_collection_names({})
     await check_memory_status()
