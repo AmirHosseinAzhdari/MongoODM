@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import jwt
 from base64 import b64decode
 
+from bson import ObjectId
 from django.utils.decorators import sync_and_async_middleware
 from django import http
 from django.utils.cache import patch_vary_headers
@@ -53,20 +54,21 @@ def authorize(request):
     if access_token:
         try:
             user_data = get_data(access_token)
-        except jwt.exceptions.InvalidSignatureError as e:
+        except jwt.exceptions.InvalidSignatureError:
             return Response(messages=[{'message': "Invalid Signature Error"}],
                             status_code=401
                             , status=status.HTTP_401_UNAUTHORIZED)
-        except jwt.exceptions.ExpiredSignatureError as e:
+        except jwt.exceptions.ExpiredSignatureError:
             return Response(messages=[{'message': 'Signature is Expired'}], status_code=401,
                             status=status.HTTP_401_UNAUTHORIZED)
         except Exception:
             return Response(messages=[{'message': 'Invalid Token'}], status_code=401,
                             status=status.HTTP_401_UNAUTHORIZED)
-        request.user = user_data
-        request.user.is_authenticated = True
+        request._user = user_data
+        request._user.is_authenticated = True
+        request._user.id = ObjectId(user_data._id)
     else:
-        request.user = None
+        request._user = None
 
 
 @sync_and_async_middleware
@@ -76,18 +78,18 @@ def auth_middleware(get_response):
     """
     if asyncio.iscoroutinefunction(get_response):
         async def middleware(request):
-            request = authorize(request)
-            if isinstance(request, Response):
-                return request
+            resp = authorize(request)
+            if isinstance(resp, Response):
+                return resp
             response = await get_response(request)
             return response
 
     else:
 
         def middleware(request):
-            request = authorize(request)
-            if isinstance(request, Response):
-                return request
+            resp = authorize(request)
+            if isinstance(resp, Response):
+                return resp
             response = get_response(request)
             return response
 

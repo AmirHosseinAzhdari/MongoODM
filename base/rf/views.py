@@ -270,7 +270,6 @@ class AsyncAPIView(View):
         Returns the initial request object.
         """
         # parser_context = self.get_parser_context(request)
-        request._user = request.user
         return Request(
             request,
             parsers=self.get_parsers(),

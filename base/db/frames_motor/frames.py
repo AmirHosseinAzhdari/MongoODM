@@ -488,7 +488,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Make sure we found a document
         if not document:
             return
-        return cls(document).is_valid()
+        return cls(document)
 
     @classmethod
     async def one_json(cls, filter=None, **kwargs):
@@ -502,7 +502,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Make sure we found a document
         if not document:
             return
-        return cls(document).is_valid().to_json_type()
+        return cls(document).to_json_type()
 
     @classmethod
     async def many(cls, filter=None, **kwargs):
@@ -518,7 +518,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
         doc = []
         async for d in documents:
-            doc.append(cls(d).is_valid())
+            doc.append(cls(d))
         return doc
 
     @classmethod
@@ -535,7 +535,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
         doc = []
         async for d in documents:
-            doc.append(cls(d).is_valid().to_json_type())
+            doc.append(cls(d).to_json_type())
         return doc
 
     @classmethod
@@ -559,7 +559,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                             additional.remove(key)
                 count += 1
             res.additional = additional
-            doc.append(res.is_valid(raise_exceptions=False))
+            doc.append(res)
         return doc
 
     @classmethod
@@ -583,7 +583,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                             additional.remove(key)
                 count += 1
             res.additional = additional
-            doc.append(res.is_valid(raise_exceptions=False).to_json_type())
+            doc.append(res.to_json_type())
         return doc
 
     @classmethod

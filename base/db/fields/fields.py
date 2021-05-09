@@ -30,7 +30,8 @@ __all__ = [
     'IPAddressField', 'IntegerField', 'NOT_PROVIDED', 'SlugField', 'UTC_NOW', 'AUTO_NOW',
     'TextField', 'TimeField', 'URLField', 'UUIDField', 'ArrayField', 'JSONField', 'ForeignFrame', 'ForeignKey',
     'ObjectIdField',
-    'EmbeddedField'
+    'EmbeddedField',
+    'PositiveIntegerField'
 ]
 
 
@@ -108,8 +109,9 @@ class Field:  # RegisterLookupMixin
     description = property(_description)
 
     def __init__(self, max_length=None, null=False,
-                 default=NOT_PROVIDED, validators=(),
+                 default=NOT_PROVIDED, validators=(), choices=None,
                  error_messages=None):
+        self.choices = choices
         self.max_length = max_length
         self.null = null
         self.default = default
@@ -182,14 +184,15 @@ class Field:  # RegisterLookupMixin
             raise exceptions.ValidationError(errors)
 
     def validate(self, value):
-        if value not in self.empty_values:
-            return value
-
+        if self.choices and value and value not in self.choices:
+            raise exceptions.ValidationError(self.error_messages['invalid_choice'], code='invalid_choice',
+                                             params={"value": value})
         if value is None and not self.null:
             raise exceptions.ValidationError(self.error_messages['null'], code='null')
-
         if not self.null and value in self.empty_values:
             raise exceptions.ValidationError(self.error_messages['blank'], code='blank')
+        if value not in self.empty_values:
+            return value
 
     def clean(self, value):
         """
@@ -549,6 +552,22 @@ class FloatField(Field):
             )
 
 
+class PositiveFloatField(FloatField):
+    default_error_messages = {
+        'invalid_float': _('“%(value)s” value must be Positive.')
+    }
+
+    def to_python(self, value):
+        value = super().to_python(value)
+        if value < 0:
+            raise exceptions.ValidationError(
+                self.error_messages['invalid_float'],
+                code='invalid_float',
+                params={'value': value},
+            )
+        return value
+
+
 class IntegerField(Field):
     empty_strings_allowed = False
     default_error_messages = {
@@ -595,6 +614,22 @@ class IntegerField(Field):
                 code='invalid',
                 params={'value': value},
             )
+
+
+class PositiveIntegerField(IntegerField):
+    default_error_messages = {
+        'invalid_integer': _('“%(value)s” value must be Positive.')
+    }
+
+    def to_python(self, value):
+        value = super().to_python(value)
+        if value < 0:
+            raise exceptions.ValidationError(
+                self.error_messages['invalid_integer'],
+                code='invalid_integer',
+                params={'value': value},
+            )
+        return value
 
 
 class IPAddressField(Field):
@@ -875,6 +910,10 @@ class JSONField(Field):
 
 
 class ArrayField(Field):
+    default_error_messages = {
+        'invalid': _('“%(value)s” is not a valid array.'),
+    }
+
     def __init__(self, to: Field = None, default=list()):
         super(ArrayField, self).__init__(default=default)
         self.to = to
