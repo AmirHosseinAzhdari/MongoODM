@@ -88,6 +88,17 @@ class _BaseFrame:
                     pass
                     # self[key] = self._child_frames[key].frame(value)
             else:
+                map = self._meta.get(key)
+                if map:
+                    if isinstance(map, EmbeddedField):
+                        setattr(self, key, map.to(value))
+                        continue
+                    if isinstance(map, ArrayField):
+                        if isinstance(map.to, EmbeddedField):
+                            obj = map.to.to
+                            value = [obj(val) for val in value]
+                            setattr(self, key, value)
+                            continue
                 setattr(self, key, value)
 
     def get(self, name, default=None):
