@@ -11,7 +11,7 @@ from django.utils.dateparse import (
 from django.utils.functional import cached_property
 from django.utils.ipv6 import clean_ipv6_address
 from django.utils.translation import gettext_lazy as _
-import magic
+# import magic
 
 __all__ = [
     'BooleanField', 'CharField',
@@ -837,52 +837,52 @@ class UUIDField(Field):
                 )
         return value
 
-
-class FileField(Field):
-    allowed_extentions = []
-
-    def __init__(self, allowed_extentions=None, Image=True, **kwargs):
-        if allowed_extentions is not None:
-            self.allowed_extentions = allowed_extentions
-        elif Image:
-            from PIL import Image
-            for key, value in Image.EXTENSION.items():
-                self.allowed_extentions.append(key.lower())
-                self.allowed_extentions.append(value.lower())
-        if allowed_extentions is None:
-            self.allowed_extentions = True
-
-        super().__init__(**kwargs)
-
-    def clean(self, data=None):
-        if self.null is False:
-            if data is None:
-                raise exceptions.ValidationError(
-                    self.error_messages['file is required'],
-                    code='required',
-                )
-        if data is None:
-            return data
-        mime = magic.Magic(mime=True)
-        file_extention = mime.from_buffer(data.read()).split("/")[1]
-        if self.allowed_extentions is True:
-            return data
-        if file_extention in self.allowed_extentions:
-            return self.check_format(data)
-        else:
-            raise exceptions.ValidationError(
-                self.error_messages['invalid extention'],
-                code='invalid_extentions',
-            )
-        return self.check_format(data)
-
-    def check_format(self, data):
-        if data.name.split(".")[1].lower() in self.allowed_extentions:
-            return data
-        raise exceptions.ValidationError(
-            self.error_messages['invalid extention'],
-            code='invalid_extentions',
-        )
+#
+# class FileField(Field):
+#     allowed_extentions = []
+#
+#     def __init__(self, allowed_extentions=None, Image=True, **kwargs):
+#         if allowed_extentions is not None:
+#             self.allowed_extentions = allowed_extentions
+#         elif Image:
+#             from PIL import Image
+#             for key, value in Image.EXTENSION.items():
+#                 self.allowed_extentions.append(key.lower())
+#                 self.allowed_extentions.append(value.lower())
+#         if allowed_extentions is None:
+#             self.allowed_extentions = True
+#
+#         super().__init__(**kwargs)
+#
+#     def clean(self, data=None):
+#         if self.null is False:
+#             if data is None:
+#                 raise exceptions.ValidationError(
+#                     self.error_messages['file is required'],
+#                     code='required',
+#                 )
+#         if data is None:
+#             return data
+#         mime = magic.Magic(mime=True)
+#         file_extention = mime.from_buffer(data.read()).split("/")[1]
+#         if self.allowed_extentions is True:
+#             return data
+#         if file_extention in self.allowed_extentions:
+#             return self.check_format(data)
+#         else:
+#             raise exceptions.ValidationError(
+#                 self.error_messages['invalid extention'],
+#                 code='invalid_extentions',
+#             )
+#         return self.check_format(data)
+#
+#     def check_format(self, data):
+#         if data.name.split(".")[1].lower() in self.allowed_extentions:
+#             return data
+#         raise exceptions.ValidationError(
+#             self.error_messages['invalid extention'],
+#             code='invalid_extentions',
+#         )
 
 
 class JSONField(Field):
