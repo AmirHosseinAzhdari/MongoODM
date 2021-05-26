@@ -328,32 +328,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send updated signal
         # signal('updated').send(self.__class__, frames=[self])
 
-    async def upsert(self):
-        """
-        Update or Insert this document depending on whether it exists or not.
-        The presense of an `_id` value in the document is used to determine if
-        the document exists.
-
-        NOTE: This method is not the same as specifying the `upsert` flag when
-        calling MongoDB. When called for a document with an `_id` value, this
-        method will call the database to see if a record with that Id exists,
-        if not it will call `insert`, if so it will call `update`. This
-        operation is therefore not atomic and much slower than the equivalent
-        MongoDB operation (due to the extra call).
-        """
-
-        # If no `_id` is provided then we insert the document
-        if not self._id:
-            return self.insert()
-
-        # If an `_id` is provided then we need to check if it exists before
-        # performing the `upsert`.
-        #
-        if self.count({'_id': self._id}) == 0:
-            await self.insert()
-        else:
-            await self.update()
-
     async def delete(self):
         """Delete this document"""
         if self._child_frames:
@@ -488,7 +462,9 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Make sure we found a document
         if not document:
             return
-        return cls(document)
+        doc = cls(document)
+        doc.clear_update_fields()
+        return doc
 
     @classmethod
     async def one_json(cls, filter=None, **kwargs):
@@ -503,6 +479,19 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if not document:
             return
         return cls(document).to_json_type()
+
+    @classmethod
+    async def one_no_cast(cls, filter=None, **kwargs):
+        """Return the first document matching the filter without casting to frame"""
+        if kwargs:
+            document = await cls.get_collection().find_one(filter, kwargs)
+        else:
+            document = await cls.get_collection().find_one(filter)
+
+        # Make sure we found a document
+        if not document:
+            return
+        return document
 
     @classmethod
     async def many(cls, filter=None, **kwargs):
@@ -536,6 +525,22 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         doc = []
         async for d in documents:
             doc.append(cls(d).to_json_type())
+        return doc
+
+    @classmethod
+    async def many_no_cast(cls, filter=None, **kwargs):
+        """Return a list of documents matching the filter"""
+        if kwargs:
+            documents = cls.get_collection().find(filter, kwargs)
+        else:
+            documents = cls.get_collection().find(filter)
+
+        if documents is None:
+            return None
+
+        doc = []
+        async for d in documents:
+            doc.append(d)
         return doc
 
     @classmethod
@@ -584,6 +589,16 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                 count += 1
             res.additional = additional
             doc.append(res.to_json_type())
+        return doc
+
+    @classmethod
+    async def aggregate_no_cast(cls, pipeline):
+        documents = cls.get_collection().aggregate(pipeline)
+        # if documents in None:
+        #     return
+        doc = []
+        async for d in documents:
+            doc.append(d)
         return doc
 
     @classmethod
