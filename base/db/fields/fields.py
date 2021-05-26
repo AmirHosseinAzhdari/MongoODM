@@ -1,11 +1,8 @@
-import ast
 import datetime
 import uuid
 import json
-from io import BytesIO
 from bson import ObjectId
 from django.core import checks, exceptions, validators
-from django.core.validators import FileExtensionValidator, get_available_image_extensions
 from django.db.models.query_utils import DeferredAttribute
 from django.utils import timezone
 from django.utils.dateparse import (
@@ -13,14 +10,7 @@ from django.utils.dateparse import (
 )
 from django.utils.functional import cached_property
 from django.utils.ipv6 import clean_ipv6_address
-from django.utils.translation import gettext_lazy as _, ngettext_lazy
-from django.forms.widgets import (
-    FILE_INPUT_CONTRADICTION, CheckboxInput, ClearableFileInput, DateInput,
-    DateTimeInput, EmailInput, FileInput, HiddenInput, MultipleHiddenInput,
-    NullBooleanSelect, NumberInput, Select, SelectMultiple,
-    SplitDateTimeWidget, SplitHiddenDateTimeWidget, Textarea, TextInput,
-    TimeInput, URLInput
-)
+from django.utils.translation import gettext_lazy as _
 import magic
 
 __all__ = [
