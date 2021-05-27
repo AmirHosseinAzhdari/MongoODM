@@ -817,22 +817,19 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     async def ids(cls, filter, **kwargs):
         """Return a list of Ids for documents matching the filter"""
-
         documents = cls.get_collection().find(
             filter,
-            projection={'_id': True},
+            projection={'_id': 1},
             **kwargs
         )
-
-        return [d['_id'] for d in list(documents)]
+        return [d['_id'] async for d in documents]
 
     @classmethod
-    def nullify(cls, ref_cls, field, frames):
+    async def nullify(cls, filter, fields):
         """Nullify a reference field (does not emit signals)"""
-        ids = [to_refs(f) for f in frames]
-        ref_cls.get_collection().update_many(
-            {field: {'$in': ids}},
-            {'$set': {field: None}}
+        await cls.get_collection().update_many(
+            filter,
+            {'$set': {{field: None} for field in fields}}
         )
 
     # Signals
