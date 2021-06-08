@@ -565,15 +565,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # if documents in None:
         #     return
         doc = []
-        count = 0
+        instance = cls()
+        for key in instance._meta.keys():
+            if key in additional:
+                additional.remove(key)
         async for d in documents:
             res = cls(d)
-            if count == 0:
-                if additional:
-                    for key in res._meta.keys():
-                        if key in additional:
-                            additional.remove(key)
-                count += 1
             res.additional = additional
             doc.append(res)
         return doc
@@ -589,15 +586,12 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # if documents in None:
         #     return
         doc = []
-        count = 0
+        instance = cls()
+        for key in instance._meta.keys():
+            if key in additional:
+                additional.remove(key)
         async for d in documents:
             res = cls(d)
-            if count == 0:
-                if additional:
-                    for key in res._meta.keys():
-                        if key in additional:
-                            additional.remove(key)
-                count += 1
             res.additional = additional
             doc.append(res.to_json_type())
         return doc
