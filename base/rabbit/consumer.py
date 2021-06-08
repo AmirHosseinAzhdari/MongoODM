@@ -1,10 +1,9 @@
 from aio_pika import *
 import asyncio
 import os
-from CommodityMS.settings import QUEUE_NAME
 
 
-async def consumer(exchange_name=None, exchange_type=None, queue_name=QUEUE_NAME, durable=False,
+async def consumer(exchange_name=None, exchange_type=None, queue_name=os.getenv('QUEUE_NAME'), durable=False,
                    callback=None, broker_url=os.getenv('BROKER_URL'), loop=None):
     """
     :param exchange_name: optional to use but if no value sets its will be declare default exchange
@@ -14,6 +13,7 @@ async def consumer(exchange_name=None, exchange_type=None, queue_name=QUEUE_NAME
     :param durable: durable queue
     :param broker_url: if not given, the default broker url is selected
     :param loop: its optional to use if its not set its will be create it self (asyncio.get_event_loop())
+    :param return_call_back: its optional to define callback when message times out
     """
     if not loop:
         loop = asyncio.get_running_loop()
@@ -27,8 +27,9 @@ async def consumer(exchange_name=None, exchange_type=None, queue_name=QUEUE_NAME
     )
     channel = await connection.channel()
     queue = await channel.declare_queue(queue_name, durable=durable)
-
     if exchange_name and exchange_type:
         exchange = await channel.declare_exchange(exchange_name, exchange_type, durable=True)
         await queue.bind(exchange)
+
     await queue.consume(callback=callback)
+    return connection

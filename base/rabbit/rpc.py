@@ -1,9 +1,13 @@
-from .consumer import consumer, IncomingMessage
-from .publisher import publisher
 import asyncio
 import json
 import uuid
 import os
+import datetime
+
+from aio_pika.message import ReturnedMessage, IncomingMessage
+
+from .consumer import consumer
+from .publisher import publisher
 
 
 class RPCClass:
@@ -31,17 +35,33 @@ class RPCClass:
             raise Exception()
         if not self.loop:
             self.loop = loop
-        await consumer(loop=self.loop, callback=self.on_response, queue_name=self.queue_name, durable=True,
-                       exchange_name=self.exchange_name, exchange_type=self.exchange_type, broker_url=self.broker_url)
+        self.connection = await consumer(loop=self.loop, callback=self.on_response, queue_name=self.queue_name,
+                                         durable=True,
+                                         exchange_name=self.exchange_name, exchange_type=self.exchange_type,
+                                         broker_url=self.broker_url)
         self.connected = True
 
     async def on_response(self, message: IncomingMessage):
         try:
-            future = self.futures.pop(message.correlation_id)
+            future = self.futures.pop(message.correlation_id, None)
+            if not future or future.done():
+                return
             async with message.process():
                 future.set_result(message.body)
         except:
             message.nack()
+
+    async def wait_response(self, future, correlation_id):
+        count = 1
+        while count < 11 and not future.done():
+            await asyncio.sleep(0.1 * count)
+            count += 1
+        if not future.done():
+            self.futures.pop(correlation_id, None)
+            future.set_result('{"op": "error", "code": 1}')
+            return '{"op": "error", "code": 1}'
+        else:
+            return future.result()
 
     async def call(self, target, op='get', model=None, key=None, value=None, query=None):
         correlation_id = str(uuid.uuid4())
@@ -55,7 +75,9 @@ class RPCClass:
             'query': query
         }
         data = json.dumps(data)
+        expiration = datetime.datetime.now() + datetime.timedelta(seconds=5)
         await publisher(data, routing_key=target, reply_to=self.queue_name, loop=self.loop,
                         exchange_type=self.exchange_type, exchange_name=self.exchange_name,
-                        correlation_id=correlation_id, broker_url=self.broker_url)
-        return json.loads(await future)
+                        expiration=expiration, correlation_id=correlation_id, broker_url=self.broker_url)
+
+        return json.loads(await self.wait_response(future, correlation_id))
