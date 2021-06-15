@@ -13,6 +13,7 @@ import sys
 from contextlib import contextmanager
 
 from django.conf import settings
+import re
 from django.http import HttpRequest, QueryDict
 from django.http.multipartparser import parse_header
 from django.http.request import RawPostDataException
@@ -211,7 +212,7 @@ class Request:
         """
         qp = {}
         for key, value in self._request.GET.items():
-            qp.update({key: value.strip().replace('ي', 'ی').replace('ك', 'ک')})
+            qp.update({key: re.escape(value.strip().replace('ي', 'ی').replace('ك', 'ک'))})
         return qp
 
     @property

@@ -293,6 +293,36 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send inserted signal
         # signal('inserted').send(self.__class__, frames=[self])
 
+    @classmethod
+    async def insert_many(cls, documents, ordered=True):
+        """Insert a list of documents"""
+        error_list = list()
+        list_of_frames = list()
+        if isinstance(documents, list) and documents[0]:
+            if isinstance(documents[0], Frame):
+                for doc in documents:
+                    d = doc._get_document()
+                    if doc._id is None:
+                        d.pop('_id')
+                    list_of_frames.append(d)
+            else:
+                for index, doc in enumerate(documents):
+                    try:
+                        frame = cls(doc).is_valid()
+                    except ValidationError as e:
+                        error_list.append({"index": index, "errors": ast.literal_eval(e.message)})
+                        continue
+                    if frame._id is None:
+                        dd = frame._get_document()
+                        dd.pop('_id')
+                        list_of_frames.append(dd)
+                    else:
+                        list_of_frames.append(frame._get_document())
+        if error_list:
+            raise ValidationError(message=str(error_list))
+        inserted_ids = await cls.get_collection().insert_many(list_of_frames, ordered=ordered)
+        return True
+
     async def unset(self, *fields):
         """Unset the given list of fields for this document."""
 
@@ -339,6 +369,16 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Send updated signal
         # signal('updated').send(self.__class__, frames=[self])
 
+    @classmethod
+    async def raw_update_one(cls, filter, update, **kwargs):
+        update_result = await cls.get_collection().update_one(filter, update, **kwargs)
+        return update_result.matched_count + update_result.modified_count
+
+    @classmethod
+    async def raw_update_many(cls, filter, update, **kwargs):
+        update_result = await cls.get_collection().update_many(filter, update, **kwargs)
+        return update_result.matched_count + update_result.modified_count
+
     async def delete(self):
         """Delete this document"""
         if self._child_frames:
@@ -347,8 +387,30 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                     return False
         delete_res = await self.get_collection().delete_one({"_id": ObjectId(self._id)})
         if delete_res.deleted_count >= 1:
-            return True
+            return delete_res.deleted_count
         return False
+
+    @classmethod
+    async def raw_delete_one(cls, filter, **kwargs):
+        """Delete multiple documents"""
+        await cls.get_collection().delete_one(filter, **kwargs)
+
+        return True
+
+    @classmethod
+    async def delete_many(cls, key, id):
+        """Delete multiple documents"""
+        if not isinstance(id, ObjectId):
+            id = ObjectId(id)
+        await cls.get_collection().delete_many({key: ObjectId(id)})
+
+        return True
+
+    @classmethod
+    async def raw_delete_many(cls, filter, **kwargs):
+        """Delete multiple documents"""
+        res = await cls.get_collection().delete_many(filter, **kwargs)
+        return res.deleted_count
 
     async def _get_parent_key(self, frame):
         for key, value in self._meta.items():
@@ -453,16 +515,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         return update_result.matched_count + update_result.modified_count
 
     @classmethod
-    async def raw_update_one(cls, filter, update, **kwargs):
-        update_result = await cls.get_collection().update_one(filter, update, **kwargs)
-        return update_result.matched_count + update_result.modified_count
-
-    @classmethod
-    async def raw_update_many(cls, filter, update, **kwargs):
-        update_result = await cls.get_collection().update_many(filter, update, **kwargs)
-        return update_result.matched_count + update_result.modified_count
-
-    @classmethod
     async def one(cls, filter=None, **kwargs):
         """Return the first document matching the filter"""
         if kwargs:
@@ -516,15 +568,11 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if documents is None:
             return None
 
-        doc = []
-        async for d in documents:
-            doc.append(cls(d))
-        return doc
+        return [cls(d) async for d in documents]
 
     @classmethod
     async def many_json(cls, filter=None, **kwargs):
         """Return a list of documents matching the filter"""
-
         if kwargs:
             documents = cls.get_collection().find(filter, kwargs)
         else:
@@ -533,10 +581,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if documents is None:
             return None
 
-        doc = []
-        async for d in documents:
-            doc.append(cls(d).to_json_type())
-        return doc
+        return [cls(d).to_json_type() async for d in documents]
 
     @classmethod
     async def many_no_cast(cls, filter=None, **kwargs):
@@ -549,10 +594,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if documents is None:
             return None
 
-        doc = []
-        async for d in documents:
-            doc.append(d)
-        return doc
+        return [d async for d in documents]
 
     @classmethod
     async def aggregate(cls, pipeline):
@@ -601,10 +643,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         documents = cls.get_collection().aggregate(pipeline)
         # if documents in None:
         #     return
-        doc = []
-        async for d in documents:
-            doc.append(d)
-        return doc
+        return [d async for d in documents]
 
     @classmethod
     async def counts(cls, pipeline):
@@ -613,36 +652,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         async for d in documents:
             return d.get("count")
         # result = await documents
-
-    @classmethod
-    async def insert_many(cls, documents, ordered=True):
-        """Insert a list of documents"""
-        error_list = list()
-        list_of_frames = list()
-        if isinstance(documents, list) and documents[0]:
-            if isinstance(documents[0], Frame):
-                for doc in documents:
-                    d = doc._get_document()
-                    if doc._id is None:
-                        d.pop('_id')
-                    list_of_frames.append(d)
-            else:
-                for index, doc in enumerate(documents):
-                    try:
-                        frame = cls(doc).is_valid()
-                    except ValidationError as e:
-                        error_list.append({"index": index, "errors": ast.literal_eval(e.message)})
-                        continue
-                    if frame._id is None:
-                        dd = frame._get_document()
-                        dd.pop('_id')
-                        list_of_frames.append(dd)
-                    else:
-                        list_of_frames.append(frame._get_document())
-        if error_list:
-            raise ValidationError(message=str(error_list))
-        inserted_ids = await cls.get_collection().insert_many(list_of_frames, ordered=ordered)
-        return True
 
     #
     #     # Ensure all documents have been converted to frames
@@ -749,29 +758,6 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     # Send updated signal
     # signal('updated').send(cls, frames=frames)
 
-    @classmethod
-    async def delete_many(cls, key, id):
-        """Delete multiple documents"""
-        if not isinstance(id, ObjectId):
-            id = ObjectId(id)
-        await cls.get_collection().delete_many({key: ObjectId(id)})
-
-        return True
-
-    @classmethod
-    async def raw_delete_many(cls, filter, **kwargs):
-        """Delete multiple documents"""
-        await cls.get_collection().delete_many(filter, **kwargs)
-
-        return True
-
-    @classmethod
-    async def raw_delete_one(cls, filter, **kwargs):
-        """Delete multiple documents"""
-        await cls.get_collection().delete_one(filter, **kwargs)
-
-        return True
-
     # @classmethod
     # async def _ensure_frames(cls, documents):
     #     """
@@ -816,14 +802,14 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
             projection={'_id': 1},
             **kwargs
         )
-        return [d['_id'] async for d in documents]
+        return [d["_id"] async for d in documents]
 
     @classmethod
     async def nullify(cls, filter, fields):
         """Nullify a reference field (does not emit signals)"""
-        await cls.get_collection().update_many(
+        cls.get_collection().update_many(
             filter,
-            {'$set': {{field: None} for field in fields}}
+            {'$set': [{field: None} for field in fields]}
         )
 
     # Signals
