@@ -387,7 +387,7 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
                     return False
         delete_res = await self.get_collection().delete_one({"_id": ObjectId(self._id)})
         if delete_res.deleted_count >= 1:
-            return True
+            return delete_res.deleted_count
         return False
 
     @classmethod
@@ -409,8 +409,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
     @classmethod
     async def raw_delete_many(cls, filter, **kwargs):
         """Delete multiple documents"""
-        await cls.get_collection().delete_many(filter, **kwargs)
-        return True
+        res = await cls.get_collection().delete_many(filter, **kwargs)
+        return res.deleted_count
 
     async def _get_parent_key(self, frame):
         for key, value in self._meta.items():
