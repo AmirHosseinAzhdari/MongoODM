@@ -32,4 +32,3 @@ async def consumer(exchange_name=None, exchange_type=None, queue_name=os.getenv(
         await queue.bind(exchange)
 
     await queue.consume(callback=callback)
-    return connection
