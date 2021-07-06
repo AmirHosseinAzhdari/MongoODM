@@ -33,8 +33,6 @@ class _BaseFrame:
     Base class for Frames and SubFrames.
     """
 
-    # A cache of key lists generated from path strings used for performance (see
-    # `_path_to_keys`.
     include = list()
     exclude = list()
     _meta = {}
@@ -541,7 +539,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         # Make sure we found a document
         if not document:
             return
-        return cls(document).to_json_type()
+        result = cls(document).to_json_type()
+        cls.include.clear()
+        cls.exclude.clear()
+        return result
 
     @classmethod
     async def one_no_cast(cls, filter=None, **kwargs):
@@ -581,7 +582,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
         if documents is None:
             return None
 
-        return [cls(d).to_json_type() async for d in documents]
+        result = [cls(d).to_json_type() async for d in documents]
+        cls.include.clear()
+        cls.exclude.clear()
+        return result
 
     @classmethod
     async def many_no_cast(cls, filter=None, **kwargs):
@@ -636,6 +640,8 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
             res = cls(d)
             res.additional = additional
             doc.append(res.to_json_type())
+        cls.include.clear()
+        cls.exclude.clear()
         return doc
 
     @classmethod
