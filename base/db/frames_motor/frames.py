@@ -35,11 +35,12 @@ class _BaseFrame:
 
     include = list()
     exclude = list()
+    _validators = list()
     _meta = {}
 
     def __init__(self, *args, **kwargs):
         self._update_field = set()
-        self.errors = list()
+        self.errors = dict()
         self._meta = dict()
         self._child_frames = dict()
         self.additional = list()
@@ -140,10 +141,21 @@ class _BaseFrame:
                     self[key] = cleaned
                 except ValidationError as e:
                     er = {key: e.messages[0]}
-                    self.errors.append(er)
+                    self.errors.update(er)
                 except FrameValidation as e:
                     er = {key: e.message}
-                    self.errors.append(er)
+                    self.errors.update(er)
+
+        if self.errors and raise_exceptions:
+            raise FrameValidation(self.errors)
+        for item in self._validators:
+            try:
+                item[1](getattr(self, item[0], None))
+            except FrameValidation as e:
+                self.errors.update({item[0]: e.message})
+            except ValidationError as e:
+                er = {item[0]: e.messages[0]}
+                self.errors.update(er)
         if self.errors and raise_exceptions:
             raise FrameValidation(self.errors)
         return self
@@ -209,6 +221,15 @@ class _BaseFrame:
 
         return value
 
+    @classmethod
+    def validator(cls, tag):
+
+        def decorator(func):
+            cls._validators.append([tag, func])
+            return func
+
+        return decorator
+
 
 class _FrameMeta(type):
     """
@@ -257,6 +278,10 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
 
     def __lt__(self, other):
         return self._id < other._id
+
+    @property
+    def id(self):
+        return self._id
 
     # Operations
 
@@ -871,3 +896,14 @@ class SubFrame(_BaseFrame):
     Sub-frames allow embedded documents to be wrapped in a class adding support
     for dot notation access to attributes.
     """
+
+
+class ViewModel(_BaseFrame):
+
+    def __setattr__(self, key, value):
+        if key in self._meta.keys():
+            setattr(self, key, value)
+
+    @property
+    def document(self):
+        return self._get_document()
