@@ -684,6 +684,15 @@ class Frame(_BaseFrame, metaclass=_FrameMeta):
             return d.get("count")
         # result = await documents
 
+    @classmethod
+    async def find_and_update(cls, filter=None, update=None, projection=None, sort=None, upsert=False, **kwargs):
+        """Return a doc of documents matching the filter and update that doc"""
+        res = await cls.get_collection().find_one_and_update(filter=filter, update=update, projection=projection,
+                                                             sort=sort,
+                                                             upsert=upsert, **kwargs)
+        if res:
+            return cls(res)
+
     #
     #     # Ensure all documents have been converted to frames
     #     # frames = await self._ensure_frames(documents)
