@@ -1,5 +1,3 @@
-## <div align="center">Mohammad H. Fathi</div>
-
 ### <div align="center">April 20 2021</div>
 
 # Base Structure for Microservices
